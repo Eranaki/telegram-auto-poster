@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Источники</p>
+        <h1>Глобальные папки с контентом</h1>
+        <p class="page-subtitle">Управление папками, сканированием и привязками к каналам.</p>
+    </div>
+    <div class="page-actions">
+        <form method="post" action="/content-paths/refresh">
+            <button type="submit" class="secondary">Обновить список папок</button>
+        </form>
+        <button type="button" class="cta-button" data-modal-open="create-source-modal">Добавить источник</button>
+    </div>
+</section>
+
+{% if error_message %}
+<section class="notice notice-error">
+    {{ error_message }}
+</section>
+{% endif %}
+
+<section class="panel" data-collapse-id="sources-list">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Список источников</p>
+            <h2>Все источники</h2>
+        </div>
+        <button type="button" class="panel-toggle" aria-expanded="true">
+            <span class="panel-toggle-icon">−</span>
+            <span class="panel-toggle-text">Свернуть</span>
+        </button>
+    </div>
+    <div class="panel-body">
+        <div class="table-like table-like-top">
+            {% if sources %}
+                {% for source in sources %}
+                <div class="table-row source-row" data-source-scan-row data-source-id="{{ source.id }}">
+                    <div>
+                        <strong>{{ source.name }}</strong>
+                        <p>{{ source.path }}</p>
+                        <small data-source-scan-result>{{ source.last_scan_result or "Сканирование еще не запускалось" }}</small>
+                        <div class="scan-progress {% if not source.scan_in_progress %}is-hidden{% endif %}" data-source-progress-wrap>
+                            <div class="scan-progress-label">
+                                <span data-source-progress-mode>{{ source.scan_mode_label }}</span>
+                                <span data-source-progress-text>{{ source.scan_progress_percent }}%</span>
+                            </div>
+                            <div class="scan-progress-bar">
+                                <span data-source-progress-fill style="width: {{ source.scan_progress_percent }}%;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="tag {% if source.enabled %}ok{% else %}muted{% endif %}">
+                            {{ "Включен" if source.enabled else "Отключен" }}
+                        </span>
+                        <p>{{ source.file_count }} файлов в индексе</p>
+                        <small>Типы: {{ source.selected_media_labels | join(', ') }}</small>
+                        <small>Сканирование: {{ source.scan_schedule_label }}</small>
+                        <small>Каналы: {{ source.linked_channel_names | join(', ') if source.linked_channel_names else "Пока не подключен" }}</small>
+                    </div>
+                    <div class="row-actions">
+                        <a class="link-button" href="/sources/{{ source.id }}/files">Файлы</a>
+                        <button type="button" class="secondary" data-modal-open="edit-source-modal-{{ source.id }}">Редактировать</button>
+                        <form method="post" action="/sources/{{ source.id }}/scan-full">
+                            <button type="submit" data-source-scan-button {% if source.scan_in_progress %}disabled{% endif %}>Полный рескан</button>
+                        </form>
+                        <form method="post" action="/sources/{{ source.id }}/scan-add">
+                            <button type="submit" class="secondary" data-source-scan-button {% if source.scan_in_progress %}disabled{% endif %}>Добавить отсутствующие</button>
+                        </form>
+                        <form method="post" action="/sources/{{ source.id }}/toggle">
+                            <button type="submit" class="secondary">{{ "Отключить" if source.enabled else "Включить" }}</button>
+                        </form>
+                        <form method="post" action="/sources/{{ source.id }}/delete" onsubmit="return confirm('Удалить источник и записи о его файлах?');">
+                            <button type="submit" class="danger">Удалить</button>
+                        </form>
+                    </div>
+                </div>
+                {% set current_edit_form = edit_source_form if edit_source_id == source.id else None %}
+                {% set edit_name = current_edit_form.name if current_edit_form else source.name %}
+                {% set edit_path = current_edit_form.path if current_edit_form else source.path %}
+                {% set edit_types = current_edit_form.file_types if current_edit_form else source.selected_media_types %}
+                {% set edit_scan_interval = current_edit_form.scan_interval_minutes if current_edit_form else source.scan_interval_minutes %}
+                {% set edit_manual_scan_only = current_edit_form.manual_scan_only if current_edit_form else source.manual_scan_only %}
+                {% set edit_recursive = current_edit_form.recursive if current_edit_form else source.recursive %}
+                {% set edit_enabled = current_edit_form.enabled if current_edit_form else source.enabled %}
+                <div class="app-modal" data-modal="edit-source-modal-{{ source.id }}" hidden>
+                    <div class="app-modal-backdrop" data-modal-close></div>
+                    <div class="app-modal-dialog">
+                        <div class="app-modal-header">
+                            <div class="modal-header-title">
+                                <p class="eyebrow">Источник</p>
+                                <h2>Редактировать источник</h2>
+                            </div>
+                            <div class="modal-header-actions">
+                                <button type="button" class="help-button" data-modal-open="source-form-help-modal" aria-label="Подсказка по настройке источника" title="Что означают поля?">?</button>
+                                <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+                            </div>
+                        </div>
+                        <div class="app-modal-body">
+                            <form method="post" action="/sources/{{ source.id }}/edit" class="form-grid source-create-form">
+                                <input type="hidden" name="return_to" value="/sources" />
+                                <label>
+                                    <span>Название</span>
+                                    <input type="text" name="name" value="{{ edit_name }}" required />
+                                </label>
+                                <label>
+                                    <span>Путь внутри контейнера</span>
+                                    <select name="path" required disabled data-content-path-select data-selected-path="{{ edit_path }}">
+                                        <option value="{{ edit_path }}">{{ edit_path or "Загрузка списка папок..." }}</option>
+                                    </select>
+                                </label>
+                                <label class="full">
+                                    <span>Тип файлов</span>
+                                    <div class="checkbox-group">
+                                        {% for value, label in media_type_options %}
+                                        <label class="checkbox option-card">
+                                            <input type="checkbox" name="file_types" value="{{ value }}" {% if value in edit_types %}checked{% endif %} />
+                                            <span>{{ label }}</span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                </label>
+                                <label>
+                                    <span>Интервал сканирования (мин.)</span>
+                                    <input type="number" name="scan_interval_minutes" min="1" value="{{ edit_scan_interval }}" data-manual-scan-interval />
+                                </label>
+                                <label class="checkbox">
+                                    <input type="checkbox" name="manual_scan_only" data-manual-scan-checkbox {% if edit_manual_scan_only %}checked{% endif %} />
+                                    <span>Только ручное сканирование</span>
+                                </label>
+                                <label class="checkbox">
+                                    <input type="checkbox" name="recursive" {% if edit_recursive %}checked{% endif %} />
+                                    <span>Сканировать рекурсивно</span>
+                                </label>
+                                <label class="checkbox">
+                                    <input type="checkbox" name="enabled" {% if edit_enabled %}checked{% endif %} />
+                                    <span>Включить источник</span>
+                                </label>
+                                <div class="actions full">
+                                    <button type="submit" data-content-path-submit disabled>Сохранить изменения</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-state">Источников пока нет.</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<div class="app-modal" data-modal="create-source-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog">
+        <div class="app-modal-header">
+            <div class="modal-header-title">
+                <p class="eyebrow">Новый источник</p>
+                <h2>Добавить источник</h2>
+            </div>
+            <div class="modal-header-actions">
+                <button type="button" class="help-button" data-modal-open="source-form-help-modal" aria-label="Подсказка по настройке источника" title="Что означают поля?">?</button>
+                <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+            </div>
+        </div>
+        <div class="app-modal-body">
+            <form method="post" action="/sources" class="form-grid source-create-form">
+                <label>
+                    <span>Название</span>
+                    <input type="text" name="name" value="{{ source_form.name }}" placeholder="Источник A" required />
+                </label>
+                <label>
+                    <span>Путь внутри контейнера</span>
+                    <select name="path" required disabled data-content-path-select data-selected-path="{{ source_form.path }}">
+                        <option value="{{ source_form.path }}">{{ source_form.path or "Загрузка списка папок..." }}</option>
+                    </select>
+                </label>
+                <label class="full">
+                    <span>Тип файлов</span>
+                    <div class="checkbox-group">
+                        {% for value, label in media_type_options %}
+                        <label class="checkbox option-card">
+                            <input type="checkbox" name="file_types" value="{{ value }}" {% if value in source_form.file_types %}checked{% endif %} />
+                            <span>{{ label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </label>
+                <label>
+                    <span>Интервал сканирования (мин.)</span>
+                    <input type="number" name="scan_interval_minutes" min="1" value="{{ source_form.scan_interval_minutes }}" data-manual-scan-interval />
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="manual_scan_only" data-manual-scan-checkbox {% if source_form.manual_scan_only %}checked{% endif %} />
+                    <span>Только ручное сканирование</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="recursive" {% if source_form.recursive %}checked{% endif %} />
+                    <span>Сканировать рекурсивно</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="enabled" {% if source_form.enabled %}checked{% endif %} />
+                    <span>Включить источник</span>
+                </label>
+                <div class="actions full">
+                    <button type="submit" data-content-path-submit disabled>Добавить источник</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="app-modal" data-modal="source-form-help-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog">
+        <div class="app-modal-header">
+            <div>
+                <p class="eyebrow">Подсказка</p>
+                <h2>Как настроить источник</h2>
+            </div>
+            <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+        </div>
+        <div class="app-modal-body">
+            <div class="help-content">
+                <ul class="help-list">
+                    <li><strong>Название</strong> — внутреннее имя папки в панели.</li>
+                    <li><strong>Путь внутри контейнера</strong> — конкретная смонтированная папка внутри <code>/content</code>.</li>
+                    <li><strong>Тип файлов</strong> — какие типы контента Telegram будет использовать из этой папки.</li>
+                    <li><strong>Интервал сканирования</strong> — как часто приложение будет искать новые и изменённые файлы.</li>
+                    <li><strong>Только ручное сканирование</strong> — отключает автоматический запуск сканирования по времени.</li>
+                    <li><strong>Сканировать рекурсивно</strong> — включает обход вложенных подпапок.</li>
+                    <li><strong>Включить источник</strong> — быстрый переключатель активности источника.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const rows = document.querySelectorAll("[data-source-scan-row]");
+        if (!rows.length) {
+            return;
+        }
+
+        const updateRow = async (row) => {
+            const sourceId = row.dataset.sourceId;
+            if (!sourceId) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/sources/${sourceId}/scan-status`, { cache: "no-store" });
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+                const resultNode = row.querySelector("[data-source-scan-result]");
+                const wrapNode = row.querySelector("[data-source-progress-wrap]");
+                const modeNode = row.querySelector("[data-source-progress-mode]");
+                const textNode = row.querySelector("[data-source-progress-text]");
+                const fillNode = row.querySelector("[data-source-progress-fill]");
+                const buttons = row.querySelectorAll("[data-source-scan-button]");
+
+                if (resultNode) {
+                    resultNode.textContent = payload.last_scan_result || "Сканирование еще не запускалось";
+                }
+                if (modeNode) {
+                    modeNode.textContent = payload.scan_mode_label || "Сканирование";
+                }
+                if (textNode) {
+                    const total = payload.scan_progress_total || 0;
+                    const current = payload.scan_progress_current || 0;
+                    textNode.textContent = total ? `${payload.scan_progress_percent}% (${current}/${total})` : `${payload.scan_progress_percent || 0}%`;
+                }
+                if (fillNode) {
+                    fillNode.style.width = `${payload.scan_progress_percent || 0}%`;
+                }
+                if (wrapNode) {
+                    wrapNode.classList.toggle("is-hidden", !payload.scan_in_progress);
+                }
+                buttons.forEach((button) => {
+                    button.disabled = Boolean(payload.scan_in_progress);
+                });
+            } catch (error) {
+                console.debug("Не удалось обновить статус сканирования", error);
+            }
+        };
+
+        const refresh = () => {
+            rows.forEach((row) => {
+                void updateRow(row);
+            });
+        };
+
+        refresh();
+        window.setInterval(refresh, 2000);
+    });
+</script>
+{% endblock %}

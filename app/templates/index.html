@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Главный дашборд</p>
+        <h1>Обзор системы</h1>
+        <p class="page-subtitle">Сводка по каналам и последним публикациям.</p>
+    </div>
+    <div class="page-actions">
+        <button type="button" class="cta-button" data-modal-open="create-channel-modal">Добавить канал</button>
+    </div>
+</section>
+
+{% if error_message %}
+<section class="notice notice-error">
+    {{ error_message }}
+</section>
+{% endif %}
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>Каналы</span>
+        <strong>{{ stats.channels }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Источники</span>
+        <strong>{{ stats.sources }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Правила</span>
+        <strong>{{ stats.rules }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Успешные отправки</span>
+        <strong>{{ stats.sent_posts }}</strong>
+    </article>
+</section>
+
+<section class="panel" data-collapse-id="dashboard-channels">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Каналы</p>
+            <h2>Telegram-каналы</h2>
+        </div>
+        <button type="button" class="panel-toggle" aria-expanded="true">
+            <span class="panel-toggle-icon">−</span>
+            <span class="panel-toggle-text">Свернуть</span>
+        </button>
+    </div>
+    <div class="panel-body">
+        <div class="channel-card-list">
+            {% if channel_cards %}
+                {% for item in channel_cards %}
+                {% set channel = item.channel %}
+                <article class="channel-card">
+                    <div class="channel-card-header">
+                        <div>
+                            <h3>{{ channel.name }}</h3>
+                            <p>{{ channel.chat_id or "chat_id не указан" }}</p>
+                        </div>
+                        <span class="tag {% if channel.enabled %}ok{% else %}muted{% endif %}">
+                            {{ "Включен" if channel.enabled else "Отключен" }}
+                        </span>
+                    </div>
+                    <div class="channel-card-stats">
+                        <span>Правил: {{ item.stats.rules }}</span>
+                        <span>Активных правил: {{ item.stats.active_rules }}</span>
+                        <span>Источников: {{ channel.source_count }}</span>
+                        <span>Успешных: {{ item.stats.sent_posts }}</span>
+                        <span>Ошибок: {{ item.stats.failed_posts }}</span>
+                    </div>
+                    <div class="channel-card-actions">
+                        <a class="link-button" href="/channels/{{ channel.id }}">Обзор</a>
+                        <a class="link-button" href="/channels/{{ channel.id }}/rules">Правила</a>
+                        <a class="link-button" href="/channels/{{ channel.id }}/sources">Источники</a>
+                        <a class="link-button" href="/channels/{{ channel.id }}/history">История</a>
+                        <form method="post" action="/channels/{{ channel.id }}/toggle">
+                            <button type="submit" class="secondary">{{ "Отключить" if channel.enabled else "Включить" }}</button>
+                        </form>
+                        <form method="post" action="/channels/{{ channel.id }}/delete" onsubmit="return confirm('Удалить канал, его правила и историю?');">
+                            <button type="submit" class="danger">Удалить</button>
+                        </form>
+                    </div>
+                </article>
+                {% endfor %}
+            {% else %}
+                <p class="empty-state">Каналов пока нет.</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="panel" data-collapse-id="dashboard-recent-history">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Последняя активность</p>
+            <h2>Недавние публикации</h2>
+        </div>
+        <div class="panel-actions">
+            <a class="link-button" href="/history">Открыть полную историю</a>
+            <button type="button" class="panel-toggle" aria-expanded="true">
+                <span class="panel-toggle-icon">−</span>
+                <span class="panel-toggle-text">Свернуть</span>
+            </button>
+        </div>
+    </div>
+    <div class="panel-body">
+        <div class="history-list">
+            {% set items = recent_posts %}
+            {% set empty_state_message = "Активности пока не было." %}
+            {% include "_history_rows.html" %}
+        </div>
+    </div>
+</section>
+
+<div class="app-modal" data-modal="create-channel-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog">
+        <div class="app-modal-header">
+            <div class="modal-header-title">
+                <p class="eyebrow">Новый канал</p>
+                <h2>Добавить канал</h2>
+            </div>
+            <div class="modal-header-actions">
+                <button type="button" class="help-button" data-modal-open="channel-form-help-modal" aria-label="Подсказка по заполнению канала" title="Что означают поля?">?</button>
+                <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+            </div>
+        </div>
+        <div class="app-modal-body">
+            <form method="post" action="/channels" class="form-grid">
+                <label>
+                    <span>Название</span>
+                    <input type="text" name="name" value="{{ channel_form.name }}" placeholder="Основной канал" required />
+                </label>
+                <label>
+                    <span class="label-with-help">
+                        <span>Chat ID / канал</span>
+                        <button type="button" class="help-button" data-modal-open="chat-id-help-modal" aria-label="Подсказка по Chat ID / канал" title="Что сюда вводить?">?</button>
+                    </span>
+                    <input type="text" name="chat_id" value="{{ channel_form.chat_id }}" placeholder="@my_channel" />
+                </label>
+                <label class="full">
+                    <span>Токен бота</span>
+                    <div class="password-field">
+                        <input type="password" name="bot_token" value="{{ channel_form.bot_token }}" placeholder="123456:ABC..." data-password-input />
+                        <button type="button" class="password-toggle" data-password-toggle aria-label="Показать токен" title="Показать токен">👁</button>
+                    </div>
+                </label>
+                <label>
+                    <span>Parse mode</span>
+                    <input type="text" name="parse_mode" value="{{ channel_form.parse_mode }}" />
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="enabled" {% if channel_form.enabled %}checked{% endif %} />
+                    <span>Включить канал сразу</span>
+                </label>
+                <label class="full">
+                    <span>Подпись по умолчанию</span>
+                    <textarea name="default_caption" rows="3" placeholder="Опционально">{{ channel_form.default_caption }}</textarea>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="disable_notification" {% if channel_form.disable_notification %}checked{% endif %} />
+                    <span>Отправлять без уведомления</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="protect_content" {% if channel_form.protect_content %}checked{% endif %} />
+                    <span>Защитить контент от пересылки</span>
+                </label>
+                <div class="actions full">
+                    <button type="submit">Добавить канал</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="app-modal" data-modal="channel-form-help-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog">
+        <div class="app-modal-header">
+            <div>
+                <p class="eyebrow">Подсказка</p>
+                <h2>Как заполнить канал</h2>
+            </div>
+            <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+        </div>
+        <div class="app-modal-body">
+            <div class="help-content">
+                <ul class="help-list">
+                    <li><strong>Название</strong> — любое удобное имя канала внутри панели.</li>
+                    <li><strong>Chat ID / канал</strong> — либо <code>@username_канала</code>, либо числовой <code>chat_id</code> приватного канала.</li>
+                    <li><strong>Токен бота</strong> — токен Telegram-бота, который будет публиковать посты.</li>
+                    <li><strong>Parse mode</strong> — формат разметки подписи. Обычно удобно оставить <code>HTML</code>.</li>
+                    <li><strong>Подпись по умолчанию</strong> — текст, который будет подставляться в посты этого канала, если правило не задаёт свой шаблон.</li>
+                    <li><strong>Отправлять без уведомления</strong> — публикация без звукового уведомления подписчикам.</li>
+                    <li><strong>Защитить контент от пересылки</strong> — Telegram попытается ограничить пересылку и сохранение контента.</li>
+                    <li><strong>Включить канал сразу</strong> — если выключено, правила канала не будут публиковать в него до повторного включения.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="app-modal" data-modal="chat-id-help-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog">
+        <div class="app-modal-header">
+            <div>
+                <p class="eyebrow">Подсказка</p>
+                <h2>Chat ID / канал</h2>
+            </div>
+            <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+        </div>
+        <div class="app-modal-body">
+            <div class="help-content">
+                <p>Сюда нужно вписывать адрес, куда бот будет постить.</p>
+                <ul class="help-list">
+                    <li><strong>@username_канала</strong>. Если у канала есть публичный username, это самый удобный вариант. Пример: <code>@my_channel</code>.</li>
+                    <li><strong>числовой chat_id</strong>. Обычно нужен для приватных каналов или групп, когда username нет. Для каналов это часто отрицательное число, например <code>-1001234567890</code>.</li>
+                </ul>
+                <p>Важно: бот должен быть добавлен в канал и иметь права на публикацию сообщений.</p>
+                <p>Если у тебя публичный Telegram-канал, почти всегда проще вписать именно <code>@имя_канала</code>.</p>
+                <hr>
+                <p>Как получить <code>chat_id</code> для приватного канала:</p>
+                <ol class="help-list">
+                    <li>Добавь своего бота в канал как администратора.</li>
+                    <li>Опубликуй в канале любое сообщение.</li>
+                    <li>Открой в браузере <code>https://api.telegram.org/botТОКЕН_БОТА/getUpdates</code>, подставив реальный токен.</li>
+                </ol>
+                <p>В ответе ищи блок вроде <code>"chat": { "id": -1001234567890, "type": "channel" }</code>. Вот это <code>id</code> и нужно вписать в поле.</p>
+                <p>Нюансы: иногда сначала нужно написать боту в личку <code>/start</code>. Если у бота настроен webhook, <code>getUpdates</code> может быть пустым.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

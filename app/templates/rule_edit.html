@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Правило канала</p>
+        <h1>Редактировать: {{ rule.name }}</h1>
+        <p class="page-subtitle">Измените источники, расписание и параметры публикации для этого правила.</p>
+    </div>
+    <div class="page-actions">
+        <a class="link-button" href="/channels/{{ channel.id }}/rules">К списку правил</a>
+    </div>
+</section>
+
+<section class="panel-grid panel-grid-main">
+    <article class="panel wide" data-collapse-id="rule-edit-{{ rule.id }}">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Настройки правила</p>
+                <h2>Параметры публикации</h2>
+            </div>
+            <div class="panel-actions">
+                <button type="button" class="help-button" data-modal-open="rule-edit-help-modal" aria-label="Подсказка по настройке правила" title="Что означают поля?">?</button>
+                <button type="button" class="panel-toggle" aria-expanded="true">
+                    <span class="panel-toggle-icon">−</span>
+                    <span class="panel-toggle-text">Свернуть</span>
+                </button>
+            </div>
+        </div>
+        <div class="panel-body">
+            <form method="post" action="/channels/{{ channel.id }}/rules/{{ rule.id }}/edit" class="form-grid">
+                <label>
+                    <span>Название правила</span>
+                    <input type="text" name="name" value="{{ rule.name }}" required />
+                </label>
+                <fieldset class="full checkbox-group">
+                    <legend>Источники</legend>
+                    {% if linked_sources %}
+                    <div class="checkbox-group-section">
+                        <strong>Подключенные к каналу</strong>
+                        {% for source in linked_sources %}
+                        <label class="checkbox">
+                            <input type="checkbox" name="source_ids" value="{{ source.id }}" {% if source.id in rule.attached_source_ids %}checked{% endif %} />
+                            <span>{{ source.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if other_sources %}
+                    <div class="checkbox-group-section">
+                        <strong>Другие глобальные</strong>
+                        {% for source in other_sources %}
+                        <label class="checkbox">
+                            <input type="checkbox" name="source_ids" value="{{ source.id }}" {% if source.id in rule.attached_source_ids %}checked{% endif %} />
+                            <span>{{ source.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </fieldset>
+                <label>
+                    <span>Интервал (мин.)</span>
+                    <input type="number" name="interval_minutes" min="1" value="{{ rule.interval_minutes }}" />
+                </label>
+                <label>
+                    <span>Рандомизация времени (мин.)</span>
+                    <input type="number" name="jitter_minutes" min="0" value="{{ rule.jitter_minutes }}" />
+                </label>
+                <label>
+                    <span>Постов за событие</span>
+                    <input type="number" name="burst_post_count" min="1" value="{{ rule.burst_post_count }}" />
+                </label>
+                <label>
+                    <span>Интервал между постами (мин.)</span>
+                    <input type="number" name="burst_interval_minutes" min="1" value="{{ rule.burst_interval_minutes }}" />
+                </label>
+                <label>
+                    <span>Публиковать с часа</span>
+                    <input type="number" name="allowed_from_hour" min="0" max="23" value="{{ '' if rule.allowed_from_hour is none else rule.allowed_from_hour }}" />
+                </label>
+                <label>
+                    <span>Публиковать до часа</span>
+                    <input type="number" name="allowed_to_hour" min="0" max="23" value="{{ '' if rule.allowed_to_hour is none else rule.allowed_to_hour }}" />
+                </label>
+                <label>
+                    <span>Режим выбора файлов</span>
+                    <select name="selection_mode">
+                        {% for value, label in selection_modes %}
+                        <option value="{{ value }}" {% if value == rule.selection_mode %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    <span>Переопределить канал</span>
+                    <input type="text" name="chat_id_override" value="{{ rule.chat_id_override or '' }}" placeholder="@another_channel" />
+                </label>
+                <label class="full">
+                    <span>Шаблон подписи</span>
+                    <textarea name="caption_template" rows="4">{{ rule.caption_template or '' }}</textarea>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="repeat_after_exhaustion" {% if rule.repeat_after_exhaustion %}checked{% endif %} />
+                    <span>Повторять после исчерпания уникальных файлов</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="send_as_document" {% if rule.send_as_document %}checked{% endif %} />
+                    <span>Всегда отправлять как документ</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="convert_heic_to_jpeg" {% if rule.convert_heic_to_jpeg %}checked{% endif %} />
+                    <span>Автоматически конвертировать HEIC в JPEG перед отправкой</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="enabled" {% if rule.enabled %}checked{% endif %} />
+                    <span>Правило активно</span>
+                </label>
+                <div class="actions full">
+                    <button type="submit">Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </article>
+</section>
+
+<div class="app-modal" data-modal="rule-edit-help-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog">
+        <div class="app-modal-header">
+            <div>
+                <p class="eyebrow">Подсказка</p>
+                <h2>Как работает правило</h2>
+            </div>
+            <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+        </div>
+        <div class="app-modal-body">
+            <div class="help-content">
+                <ul class="help-list">
+                    <li><strong>Источники</strong> — все выбранные источники формируют общий пул файлов для правила.</li>
+                    <li><strong>Интервал</strong> — базовая частота запусков.</li>
+                    <li><strong>Рандомизация времени</strong> — случайное смещение запуска относительно базового интервала.</li>
+                    <li><strong>Постов за событие</strong> и <strong>Интервал между постами</strong> — серия постов подряд внутри одного запуска.</li>
+                    <li><strong>Публиковать с часа / до часа</strong> — ограничение времени публикации в течение суток.</li>
+                    <li><strong>Режим выбора файлов</strong>:
+                        <br><code>Случайно без повторов</code> — случайный файл, пока не закончатся уникальные.
+                        <br><code>Перемешанный цикл</code> — один раз перемешанный проход по пулу.
+                        <br><code>По очереди от старых</code> — в первую очередь берет давно не отправлявшиеся файлы.
+                        <br><code>Полный случайный выбор</code> — полностью случайный выбор, повторы возможны раньше остальных.
+                    </li>
+                    <li><strong>Переопределить канал</strong> — ручная отправка этого правила в другой канал.</li>
+                    <li><strong>Шаблон подписи</strong> — подпись только для этого правила.</li>
+                    <li><strong>Повторять после исчерпания</strong> — после полного прохода правило снова начнет использовать те же файлы.</li>
+                    <li><strong>Всегда отправлять как документ</strong> — полезно для нестандартных форматов и проблемных медиа.</li>
+                    <li><strong>Автоконвертация HEIC</strong> — предварительно переводит HEIC/HEIF в JPEG перед отправкой как фото.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

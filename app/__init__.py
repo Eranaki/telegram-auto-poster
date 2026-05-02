@@ -1,0 +1,1 @@
+"""Telegram folder poster application."""

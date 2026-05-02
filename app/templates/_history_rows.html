@@ -1,0 +1,36 @@
+{% if items %}
+    {% for item in items %}
+    <div class="history-row">
+        <button
+            type="button"
+            class="history-thumb"
+            data-preview-open
+            data-file-name="{{ item.file.relative_path if item.file else 'Файл недоступен' }}"
+            data-file-kind="{{ item.file.media_kind if item.file else 'document' }}"
+            data-original-url="{{ item.preview_original_url or '#' }}"
+            data-image-url="{{ item.preview_image_url or '' }}"
+            {% if not item.preview_original_url %}disabled{% endif %}
+        >
+            {% if item.preview_thumbnail_url %}
+            <img src="{{ item.preview_thumbnail_url }}" alt="{{ item.file.relative_path if item.file else 'Файл' }}" loading="lazy" />
+            {% else %}
+            <span>Нет файла</span>
+            {% endif %}
+        </button>
+        <div class="history-main">
+            <div class="history-topline">
+                <span class="status-badge {{ item.status_badge_class }}">{{ item.status_label }}</span>
+                <span>{{ item.rule.channel.name if item.rule and item.rule.channel else channel.name if channel is defined else "Канал не указан" }}</span>
+                <span>{{ item.rule_display_name }}</span>
+            </div>
+            <strong>{{ item.file.relative_path if item.file else "Файл не указан" }}</strong>
+            <small>{{ item.message or "Без подробностей" }}</small>
+        </div>
+        <div class="history-time">
+            {{ item.attempted_at.strftime("%Y-%m-%d %H:%M") }}
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <p class="empty-state">{{ empty_state_message or "Записей нет." }}</p>
+{% endif %}

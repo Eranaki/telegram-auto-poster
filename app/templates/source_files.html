@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Источник</p>
+        <h1>{{ source.name }}</h1>
+        <p class="page-subtitle">{{ source.path }}</p>
+    </div>
+    <div class="page-actions">
+        <a class="link-button" href="/sources">К списку источников</a>
+        <button type="button" data-modal-open="file-view-modal">Вид</button>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>Всего файлов</span>
+        <strong>{{ stats.total }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Активных</span>
+        <strong>{{ stats.active }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Уже отправлялись</span>
+        <strong>{{ stats.posted }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Еще не отправлялись</span>
+        <strong>{{ stats.unposted }}</strong>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Файловый браузер</p>
+            <h2>Просмотр и фильтры</h2>
+        </div>
+        <div class="panel-actions">
+            <span class="meta-pill">Найдено: {{ total_matching }}</span>
+            <span class="meta-pill">Превью: {{ thumbnail_size_px }} px</span>
+        </div>
+    </div>
+    <div class="panel-body">
+        <form method="get" class="file-browser-toolbar">
+            <label>
+                <span>Статус</span>
+                <select name="status">
+                    {% for value, label in status_options %}
+                    <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="filter-search">
+                <span>Поиск по пути</span>
+                <input type="text" name="q" value="{{ q }}" placeholder="Например memes/cat.gif" />
+            </label>
+            <label>
+                <span>Сортировка</span>
+                <select name="sort">
+                    {% for value, label in file_sort_options %}
+                    <option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <input type="hidden" name="kinds" value="{{ kinds }}" data-kinds-hidden />
+            <input type="hidden" name="page" value="1" />
+            <div class="file-kind-filter">
+                <span>Тип контента</span>
+                <div class="checkbox-group checkbox-group-compact">
+                    {% for value, label in file_media_type_options %}
+                    <label class="checkbox option-card option-card-compact">
+                        <input type="checkbox" value="{{ value }}" data-kind-checkbox {% if value in selected_media_kinds %}checked{% endif %} />
+                        <span>{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="actions">
+                <button type="submit">Применить</button>
+            </div>
+        </form>
+
+        {% if files %}
+        <div class="file-browser file-browser-{{ current_view_mode }} file-browser-size-{{ current_card_size }}">
+            {% for file in files %}
+            <article class="file-card">
+                <button
+                    type="button"
+                    class="file-preview-button"
+                    data-preview-open
+                    data-file-name="{{ file.relative_path }}"
+                    data-file-kind="{{ file.media_kind }}"
+                    data-original-url="{{ request.url_for('file_original', file_id=file.id) }}"
+                    data-image-url="{{ request.url_for('file_original', file_id=file.id) if file.media_kind in ['photo', 'animation'] else '' }}"
+                >
+                    <img
+                        src="{{ request.url_for('file_thumbnail', file_id=file.id) }}"
+                        alt="{{ file.relative_path }}"
+                        loading="lazy"
+                        width="{{ thumbnail_size_px }}"
+                        height="{{ thumbnail_size_px }}"
+                    />
+                </button>
+
+                <div class="file-card-body">
+                    <div class="file-card-title-row">
+                        <strong title="{{ file.relative_path }}">{{ file.relative_path }}</strong>
+                        <span class="tag {% if file.is_active %}ok{% else %}muted{% endif %}">
+                            {{ "Активен" if file.is_active else "Отключен" }}
+                        </span>
+                    </div>
+
+                    <div class="file-card-meta">
+                        <span>{{ file.media_kind }}</span>
+                        <span>{{ file.human_size }}</span>
+                        <span>Публикаций: {{ file.post_count }}</span>
+                    </div>
+
+                    <div class="file-card-path">{{ file.absolute_path }}</div>
+
+                    <div class="file-card-extra">
+                        <span>Обнаружен: {{ file.discovered_at.strftime("%Y-%m-%d %H:%M") }}</span>
+                        <span>{{ file.last_posted_at.strftime("%Y-%m-%d %H:%M") if file.last_posted_at else "Еще не отправлялся" }}</span>
+                    </div>
+
+                    <div class="file-card-actions">
+                        <a class="link-button" href="{{ request.url_for('file_original', file_id=file.id) }}" target="_blank" rel="noopener">Открыть оригинал</a>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state">По текущим фильтрам файлов не найдено.</p>
+        {% endif %}
+
+        <div class="pagination-bar">
+            <div class="pagination-summary">
+                <span>Страница {{ current_page }} из {{ total_pages }}</span>
+                <span>{{ total_matching }} файлов по текущему фильтру</span>
+            </div>
+            <div class="pagination-actions">
+                <a class="link-button {% if current_page <= 1 %}is-disabled{% endif %}" href="{{ request.url.include_query_params(page=current_page - 1, status=status, q=q, kinds=kinds, sort=sort) if current_page > 1 else '#' }}">Назад</a>
+                {% for item in page_numbers %}
+                <a class="page-chip {% if item == current_page %}is-active{% endif %}" href="{{ request.url.include_query_params(page=item, status=status, q=q, kinds=kinds, sort=sort) }}">{{ item }}</a>
+                {% endfor %}
+                <a class="link-button {% if current_page >= total_pages %}is-disabled{% endif %}" href="{{ request.url.include_query_params(page=current_page + 1, status=status, q=q, kinds=kinds, sort=sort) if current_page < total_pages else '#' }}">Вперёд</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Последние отправки</p>
+            <h2>История по источнику</h2>
+        </div>
+    </div>
+    <div class="panel-body">
+        <div class="history-list">
+            {% set items = recent_source_posts %}
+            {% set empty_state_message = "По этому источнику еще нет истории публикаций." %}
+            {% include "_history_rows.html" %}
+        </div>
+    </div>
+</section>
+
+<div class="app-modal" data-modal="file-view-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog">
+        <div class="app-modal-header">
+            <div>
+                <p class="eyebrow">Файлы</p>
+                <h2>Вид</h2>
+            </div>
+            <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+        </div>
+        <div class="app-modal-body">
+            <form method="post" action="/settings/file-browser" class="form-grid">
+                <label>
+                    <span>Вид</span>
+                    <select name="file_view_mode">
+                        {% for value, label in file_view_mode_options %}
+                        <option value="{{ value }}" {% if current_view_mode == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    <span>Размер карточек</span>
+                    <select name="file_card_size">
+                        {% for value, label in file_card_size_options %}
+                        <option value="{{ value }}" {% if current_card_size == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    <span>Файлов на странице</span>
+                    <select name="file_page_size">
+                        {% for value in file_page_size_options %}
+                        <option value="{{ value }}" {% if current_per_page == value %}selected{% endif %}>{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    <span>Размер превью (px)</span>
+                    <input type="number" name="thumbnail_size_px" min="96" max="640" step="16" value="{{ thumbnail_size_px }}" />
+                </label>
+                <div class="actions full">
+                    <button type="submit">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const toolbar = document.querySelector(".file-browser-toolbar");
+        if (!toolbar) {
+            return;
+        }
+
+        const hiddenKinds = toolbar.querySelector("[data-kinds-hidden]");
+        const checkboxes = toolbar.querySelectorAll("[data-kind-checkbox]");
+        const syncKinds = () => {
+            hiddenKinds.value = Array.from(checkboxes)
+                .filter((checkbox) => checkbox.checked)
+                .map((checkbox) => checkbox.value)
+                .join(",");
+        };
+
+        syncKinds();
+        checkboxes.forEach((checkbox) => {
+            checkbox.addEventListener("change", syncKinds);
+        });
+        toolbar.addEventListener("submit", syncKinds);
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Канал</p>
+        <h1>{{ channel.name }}: правила</h1>
+        <p class="page-subtitle">Сценарии публикации для этого канала.</p>
+    </div>
+    <div class="page-actions">
+        <button type="button" class="cta-button" data-modal-open="import-rule-modal">Добавить существующее правило</button>
+        <button type="button" class="cta-button" data-modal-open="create-rule-modal">Добавить новое правило</button>
+    </div>
+</section>
+
+{% if error_message %}
+<section class="notice notice-error">
+    {{ error_message }}
+</section>
+{% endif %}
+
+<section class="panel" data-collapse-id="channel-rules-list-{{ channel.id }}">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Правила канала</p>
+            <h2>Список правил</h2>
+        </div>
+        <button type="button" class="panel-toggle" aria-expanded="true">
+            <span class="panel-toggle-icon">−</span>
+            <span class="panel-toggle-text">Свернуть</span>
+        </button>
+    </div>
+    <div class="panel-body">
+        <div class="rule-list">
+            {% if rules %}
+                {% for rule in rules %}
+                <article class="rule-card">
+                    <div class="rule-card-main">
+                        <div class="rule-card-title-row">
+                            <strong>{{ rule.name }}</strong>
+                            <span class="tag {% if rule.enabled %}ok{% else %}muted{% endif %}">
+                                {{ "Включено" if rule.enabled else "Отключено" }}
+                            </span>
+                        </div>
+                        <div class="rule-card-summary">
+                            <span><strong>Источники:</strong> {{ rule.attached_sources_label }}</span>
+                            <span><strong>Интервал:</strong> {{ rule.interval_minutes }} мин.</span>
+                            <span><strong>Серия:</strong> {{ rule.burst_summary_label }}</span>
+                            <span><strong>Режим:</strong> {{ rule.selection_mode_label }}</span>
+                            <span><strong>Серия сейчас:</strong> {{ rule.burst_state_label }}</span>
+                            <span><strong>Статус:</strong> {{ rule.last_result or "Запусков еще не было" }}</span>
+                            <span><strong>Следующий запуск:</strong> {{ rule.next_run_at.strftime("%Y-%m-%d %H:%M") if rule.next_run_at else "доступен сразу" }}</span>
+                        </div>
+                    </div>
+                    <div class="rule-card-actions rule-card-actions-below">
+                        <a class="link-button" href="/channels/{{ channel.id }}/rules/{{ rule.id }}/edit">Редактировать</a>
+                        <a class="link-button" href="/rules/{{ rule.id }}/queue">Очередь</a>
+                        <form method="post" action="/rules/{{ rule.id }}/run">
+                            <button type="submit">Запустить сейчас</button>
+                        </form>
+                        <form method="post" action="/rules/{{ rule.id }}/toggle">
+                            <button type="submit" class="secondary">{{ "Отключить" if rule.enabled else "Включить" }}</button>
+                        </form>
+                        <form method="post" action="/rules/{{ rule.id }}/delete" onsubmit="return confirm('Удалить правило и его историю?');">
+                            <button type="submit" class="danger">Удалить</button>
+                        </form>
+                    </div>
+                </article>
+                {% endfor %}
+            {% else %}
+                <p class="empty-state">У этого канала пока нет правил.</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<div class="app-modal" data-modal="import-rule-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog">
+        <div class="app-modal-header">
+            <div class="modal-header-title">
+                <p class="eyebrow">Существующее правило</p>
+                <h2>Добавить существующее правило</h2>
+            </div>
+            <div class="modal-header-actions">
+                <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+            </div>
+        </div>
+        <div class="app-modal-body">
+            <form method="post" action="/channels/{{ channel.id }}/rules/import" class="form-grid">
+                <label class="full">
+                    <span>Правило из другого канала</span>
+                    <select name="template_rule_id" required {% if not importable_rules %}disabled{% endif %}>
+                        {% if importable_rules %}
+                            {% for rule in importable_rules %}
+                            <option value="{{ rule.id }}">
+                                {{ rule.name }} — {{ rule.channel.name if rule.channel else "Без канала" }}
+                            </option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="">Нет доступных правил для копирования</option>
+                        {% endif %}
+                    </select>
+                </label>
+                <p class="form-hint full">
+                    Выбранное правило будет скопировано в текущий канал со всеми настройками. Если имя уже занято, приложение добавит к нему номер.
+                </p>
+                <div class="actions full">
+                    <button type="submit" {% if not importable_rules %}disabled{% endif %}>Добавить существующее правило</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="app-modal" data-modal="create-rule-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog app-modal-dialog-wide">
+        <div class="app-modal-header">
+            <div class="modal-header-title">
+                <p class="eyebrow">Новое правило</p>
+                <h2>Добавить новое правило</h2>
+            </div>
+            <div class="modal-header-actions">
+                <button type="button" class="help-button" data-modal-open="rule-form-help-modal" aria-label="Подсказка по настройке правила" title="Что означают поля?">?</button>
+                <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+            </div>
+        </div>
+        <div class="app-modal-body">
+            <form method="post" action="/rules" class="form-grid">
+                <input type="hidden" name="channel_id" value="{{ channel.id }}" />
+                <label>
+                    <span>Название правила</span>
+                    <input type="text" name="name" value="{{ rule_form.name }}" placeholder="Случайные утренние посты" required />
+                </label>
+                <fieldset class="full checkbox-group">
+                    <legend>Источники</legend>
+                    {% if linked_sources %}
+                    <div class="checkbox-group-section">
+                        <strong>Подключенные к каналу</strong>
+                        {% for source in linked_sources %}
+                        <label class="checkbox">
+                            <input type="checkbox" name="source_ids" value="{{ source.id }}" {% if source.id in rule_form.source_ids %}checked{% endif %} />
+                            <span>{{ source.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if other_sources %}
+                    <div class="checkbox-group-section">
+                        <strong>Другие глобальные</strong>
+                        {% for source in other_sources %}
+                        <label class="checkbox">
+                            <input type="checkbox" name="source_ids" value="{{ source.id }}" {% if source.id in rule_form.source_ids %}checked{% endif %} />
+                            <span>{{ source.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </fieldset>
+                <label>
+                    <span>Интервал (мин.)</span>
+                    <input type="number" name="interval_minutes" min="1" value="{{ rule_form.interval_minutes }}" />
+                </label>
+                <label>
+                    <span>Рандомизация времени (мин.)</span>
+                    <input type="number" name="jitter_minutes" min="0" value="{{ rule_form.jitter_minutes }}" />
+                </label>
+                <label>
+                    <span>Постов за событие</span>
+                    <input type="number" name="burst_post_count" min="1" value="{{ rule_form.burst_post_count }}" />
+                </label>
+                <label>
+                    <span>Интервал между постами (мин.)</span>
+                    <input type="number" name="burst_interval_minutes" min="1" value="{{ rule_form.burst_interval_minutes }}" />
+                </label>
+                <label>
+                    <span>Публиковать с часа</span>
+                    <input type="number" name="allowed_from_hour" min="0" max="23" value="{{ rule_form.allowed_from_hour }}" placeholder="8" />
+                </label>
+                <label>
+                    <span>Публиковать до часа</span>
+                    <input type="number" name="allowed_to_hour" min="0" max="23" value="{{ rule_form.allowed_to_hour }}" placeholder="22" />
+                </label>
+                <label>
+                    <span>Режим выбора файлов</span>
+                    <select name="selection_mode">
+                        {% for value, label in selection_modes %}
+                        <option value="{{ value }}" {% if value == rule_form.selection_mode %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    <span>Переопределить канал</span>
+                    <input type="text" name="chat_id_override" value="{{ rule_form.chat_id_override }}" placeholder="@another_channel" />
+                </label>
+                <label class="full">
+                    <span>Шаблон подписи</span>
+                    <textarea name="caption_template" rows="3">{{ rule_form.caption_template }}</textarea>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="repeat_after_exhaustion" {% if rule_form.repeat_after_exhaustion %}checked{% endif %} />
+                    <span>Повторять после исчерпания уникальных файлов</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="send_as_document" {% if rule_form.send_as_document %}checked{% endif %} />
+                    <span>Всегда отправлять как документ</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="convert_heic_to_jpeg" {% if rule_form.convert_heic_to_jpeg %}checked{% endif %} />
+                    <span>Автоматически конвертировать HEIC в JPEG перед отправкой</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="enabled" {% if rule_form.enabled %}checked{% endif %} />
+                    <span>Включить правило сразу</span>
+                </label>
+                <div class="actions full">
+                    <button type="submit" {% if not linked_sources and not other_sources %}disabled{% endif %}>Добавить новое правило</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="app-modal" data-modal="rule-form-help-modal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog">
+        <div class="app-modal-header">
+            <div>
+                <p class="eyebrow">Подсказка</p>
+                <h2>Как настроить правило</h2>
+            </div>
+            <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+        </div>
+        <div class="app-modal-body">
+            <div class="help-content">
+                <ul class="help-list">
+                    <li><strong>Источники</strong> — папки, из которых правило будет брать файлы. В текущей версии все выбранные источники работают как один общий пул.</li>
+                    <li><strong>Интервал</strong> — как часто запускается событие публикации.</li>
+                    <li><strong>Рандомизация времени</strong> — случайное отклонение от интервала в обе стороны.</li>
+                    <li><strong>Постов за событие</strong> и <strong>Интервал между постами</strong> — серия публикаций внутри одного запуска правила.</li>
+                    <li><strong>Публиковать с часа / до часа</strong> — ограничивает публикации указанным окном по времени.</li>
+                    <li><strong>Режим выбора файлов</strong>:
+                        <br><code>Случайно без повторов</code> — берет случайный файл, пока уникальные не закончатся.
+                        <br><code>Перемешанный цикл</code> — перемешивает доступные файлы и идет по ним как по циклу.
+                        <br><code>По очереди от старых</code> — выбирает файл с самым старым временем публикации.
+                        <br><code>Полный случайный выбор</code> — может снова выбрать уже отправленный файл раньше остальных.
+                    </li>
+                    <li><strong>Переопределить канал</strong> — если нужно временно отправлять это правило в другой Telegram-канал.</li>
+                    <li><strong>Шаблон подписи</strong> — подпись только для этого правила, с приоритетом над подписью канала.</li>
+                    <li><strong>Повторять после исчерпания</strong> — позволяет снова запускать правило по тем же файлам после полного прохода.</li>
+                    <li><strong>Всегда отправлять как документ</strong> — полезно, если Telegram плохо обрабатывает медиа как фото или видео.</li>
+                    <li><strong>Автоматически конвертировать HEIC в JPEG</strong> — для проблемных HEIC/HEIF-файлов перед отправкой как фото.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

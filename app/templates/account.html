@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Безопасность</p>
+        <h1>Аккаунт администратора</h1>
+        <p class="page-subtitle">Измени логин и пароль для доступа к панели управления.</p>
+    </div>
+</section>
+
+{% if success_message %}
+<section class="notice notice-success">
+    {{ success_message }}
+</section>
+{% endif %}
+
+{% if error_message %}
+<section class="notice notice-error">
+    {{ error_message }}
+</section>
+{% endif %}
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Данные входа</p>
+            <h2>Логин и пароль</h2>
+        </div>
+    </div>
+    <div class="panel-body">
+        <form method="post" action="/account" class="form-grid">
+            <label class="full">
+                <span>Новый логин</span>
+                <input type="text" name="username" value="{{ account_form.username }}" autocomplete="username" required />
+            </label>
+            <label class="full">
+                <span>Текущий пароль</span>
+                <input type="password" name="current_password" autocomplete="current-password" required />
+            </label>
+            <label>
+                <span>Новый пароль</span>
+                <input type="password" name="new_password" autocomplete="new-password" required />
+            </label>
+            <label>
+                <span>Подтверждение пароля</span>
+                <input type="password" name="confirm_password" autocomplete="new-password" required />
+            </label>
+            <div class="actions full">
+                <button type="submit">Сохранить данные входа</button>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

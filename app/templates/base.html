@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title or "Telegram Auto Poster" }}</title>
+    <script>
+        (() => {
+            try {
+                const savedTheme = window.localStorage.getItem("tfp:theme");
+                document.documentElement.dataset.theme = savedTheme === "dark" ? "dark" : "light";
+            } catch (error) {
+                document.documentElement.dataset.theme = "light";
+            }
+        })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23256cff'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='Segoe UI,Arial,sans-serif' font-size='22' font-weight='700' fill='white'%3ETAP%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="{{ request.url_for('static', path='styles.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <span class="sidebar-badge">TAP</span>
+                <div>
+                    <strong>Telegram Auto Poster</strong>
+                    <small>Самохостинг-панель</small>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="/" class="sidebar-link {% if request.url.path == '/' %}is-active{% endif %}">
+                    <span>Главная</span>
+                </a>
+                <a href="/sources" class="sidebar-link {% if request.url.path == '/sources' or request.url.path.startswith('/sources/') %}is-active{% endif %}">
+                    <span>Источники</span>
+                </a>
+                <a href="/history" class="sidebar-link {% if request.url.path.startswith('/history') %}is-active{% endif %}">
+                    <span>Глобальная история</span>
+                </a>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Каналы</div>
+                    {% if sidebar_channels %}
+                        {% for channel in sidebar_channels %}
+                        {% set channel_prefix = '/channels/' ~ channel.id %}
+                        {% set channel_active = request.url.path == channel_prefix or request.url.path.startswith(channel_prefix ~ '/') %}
+                        <div class="channel-tree {% if channel_active %}is-active{% endif %}" data-sidebar-channel="{{ channel.id }}">
+                            <div class="channel-tree-header">
+                                <span class="channel-tree-name" title="{{ channel.name }}">{{ channel.name }}</span>
+                                <button type="button" class="channel-tree-collapse" data-sidebar-toggle aria-expanded="true" aria-label="Свернуть или развернуть">
+                                    <span class="channel-tree-icon">▾</span>
+                                </button>
+                            </div>
+                            <div class="channel-tree-links">
+                                <a href="/channels/{{ channel.id }}" class="sidebar-sublink {% if request.url.path == '/channels/' ~ channel.id or request.url.path == '/channels/' ~ channel.id ~ '/overview' %}is-active{% endif %}">
+                                    Обзор
+                                </a>
+                                <a href="/channels/{{ channel.id }}/rules" class="sidebar-sublink {% if request.url.path.startswith('/channels/' ~ channel.id ~ '/rules') %}is-active{% endif %}">
+                                    Правила
+                                </a>
+                                <a href="/channels/{{ channel.id }}/sources" class="sidebar-sublink {% if request.url.path.startswith('/channels/' ~ channel.id ~ '/sources') %}is-active{% endif %}">
+                                    Источники
+                                </a>
+                                <a href="/channels/{{ channel.id }}/history" class="sidebar-sublink {% if request.url.path.startswith('/channels/' ~ channel.id ~ '/history') %}is-active{% endif %}">
+                                    История
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="sidebar-empty">Каналов пока нет</div>
+                    {% endif %}
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-account">
+                    <a href="/account" class="link-button sidebar-account-link">Аккаунт: {{ current_admin_username }}</a>
+                    <form method="post" action="/logout" class="sidebar-logout-form">
+                        <button type="submit" class="secondary sidebar-logout-button">Выйти</button>
+                    </form>
+                </div>
+                <div class="theme-switcher" aria-label="Переключение темы">
+                    <button type="button" class="theme-button" data-theme-choice="light" aria-label="Светлая тема" title="Светлая тема">
+                        ☀
+                    </button>
+                    <button type="button" class="theme-button" data-theme-choice="dark" aria-label="Темная тема" title="Темная тема">
+                        ☾
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-shell">
+            <div class="content-shell">
+                {% if auth_warning_active %}
+                <section class="notice notice-warning">
+                    Обнаружены стандартные данные входа. Рекомендуется открыть <a href="/account">страницу аккаунта</a> и изменить логин и пароль администратора.
+                </section>
+                {% endif %}
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <div class="app-modal-layer">
+        <div class="preview-modal" data-preview-modal hidden>
+            <div class="preview-modal-backdrop" data-preview-close></div>
+            <div class="preview-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
+                <div class="preview-modal-header">
+                    <div>
+                        <p class="eyebrow">Предпросмотр</p>
+                        <h2 id="preview-modal-title" data-preview-title>Файл</h2>
+                    </div>
+                    <button type="button" class="preview-modal-close" data-preview-close>Закрыть</button>
+                </div>
+                <div class="preview-modal-body">
+                    <div class="preview-modal-media">
+                        <img data-preview-image alt="" hidden />
+                        <div class="preview-modal-placeholder" data-preview-placeholder>
+                            Для этого типа файлов доступно открытие оригинала в новой вкладке.
+                        </div>
+                    </div>
+                    <div class="preview-modal-actions">
+                        <a class="link-button" data-preview-original target="_blank" rel="noopener">Открыть оригинал</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.__OPEN_MODAL_ID__ = {{ open_modal_id|tojson if open_modal_id is defined else 'null' }};
+        window.__CSRF_TOKEN__ = {{ csrf_token|tojson if csrf_token is defined else '""' }};
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const panelStoragePrefix = "tfp:panel:";
+            const sidebarStoragePrefix = "tfp:sidebar:";
+            const themeStorageKey = "tfp:theme";
+
+            document.querySelectorAll('form[method="post"]').forEach((form) => {
+                if (!window.__CSRF_TOKEN__ || form.querySelector('input[name="csrf_token"]')) {
+                    return;
+                }
+                const input = document.createElement("input");
+                input.type = "hidden";
+                input.name = "csrf_token";
+                input.value = window.__CSRF_TOKEN__;
+                form.prepend(input);
+            });
+
+            document.querySelectorAll(".panel[data-collapse-id]").forEach((panel) => {
+                const collapseId = panel.dataset.collapseId;
+                const body = panel.querySelector(".panel-body");
+                const toggle = panel.querySelector(".panel-toggle");
+                if (!collapseId || !body || !toggle) {
+                    return;
+                }
+
+                const text = toggle.querySelector(".panel-toggle-text");
+                const icon = toggle.querySelector(".panel-toggle-icon");
+
+                const setCollapsed = (collapsed) => {
+                    panel.classList.toggle("is-collapsed", collapsed);
+                    body.hidden = collapsed;
+                    toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+                    if (text) {
+                        text.textContent = collapsed ? "Развернуть" : "Свернуть";
+                    }
+                    if (icon) {
+                        icon.textContent = collapsed ? "+" : "−";
+                    }
+                    window.localStorage.setItem(panelStoragePrefix + collapseId, collapsed ? "collapsed" : "expanded");
+                };
+
+                const savedState = window.localStorage.getItem(panelStoragePrefix + collapseId);
+                setCollapsed(savedState === "collapsed");
+
+                toggle.addEventListener("click", () => {
+                    setCollapsed(!panel.classList.contains("is-collapsed"));
+                });
+            });
+
+            document.querySelectorAll(".channel-tree[data-sidebar-channel]").forEach((tree) => {
+                const channelId = tree.dataset.sidebarChannel;
+                const toggle = tree.querySelector("[data-sidebar-toggle]");
+                const links = tree.querySelector(".channel-tree-links");
+                const icon = tree.querySelector(".channel-tree-icon");
+                if (!channelId || !toggle || !links) {
+                    return;
+                }
+
+                const setOpen = (open) => {
+                    tree.classList.toggle("is-open", open);
+                    links.hidden = !open;
+                    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+                    if (icon) {
+                        icon.textContent = open ? "▾" : "▸";
+                    }
+                    window.localStorage.setItem(sidebarStoragePrefix + channelId, open ? "open" : "closed");
+                };
+
+                const savedState = window.localStorage.getItem(sidebarStoragePrefix + channelId);
+                const defaultOpen = tree.classList.contains("is-active");
+                setOpen(savedState ? savedState === "open" : defaultOpen);
+
+                toggle.addEventListener("click", () => {
+                    setOpen(!tree.classList.contains("is-open"));
+                });
+            });
+
+            const setTheme = (theme) => {
+                const normalizedTheme = theme === "dark" ? "dark" : "light";
+                document.documentElement.dataset.theme = normalizedTheme;
+                try {
+                    window.localStorage.setItem(themeStorageKey, normalizedTheme);
+                } catch (error) {
+                    console.debug("Не удалось сохранить тему", error);
+                }
+
+                document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+                    const isActive = button.dataset.themeChoice === normalizedTheme;
+                    button.classList.toggle("is-active", isActive);
+                    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+                });
+            };
+
+            document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    setTheme(button.dataset.themeChoice || "light");
+                });
+            });
+
+            setTheme(document.documentElement.dataset.theme || "light");
+
+            document.querySelectorAll(".password-field").forEach((field) => {
+                const input = field.querySelector("[data-password-input]");
+                const toggle = field.querySelector("[data-password-toggle]");
+                if (!input || !toggle) {
+                    return;
+                }
+
+                const setVisible = (visible) => {
+                    input.type = visible ? "text" : "password";
+                    toggle.textContent = visible ? "🙈" : "👁";
+                    toggle.setAttribute("aria-label", visible ? "Скрыть токен" : "Показать токен");
+                    toggle.setAttribute("title", visible ? "Скрыть токен" : "Показать токен");
+                };
+
+                setVisible(false);
+                toggle.addEventListener("click", () => {
+                    setVisible(input.type === "password");
+                });
+            });
+
+            document.querySelectorAll("form").forEach((form) => {
+                const checkbox = form.querySelector("[data-manual-scan-checkbox]");
+                const intervalInput = form.querySelector("[data-manual-scan-interval]");
+                if (!checkbox || !intervalInput) {
+                    return;
+                }
+
+                const syncManualScanState = () => {
+                    intervalInput.disabled = checkbox.checked;
+                    intervalInput.closest("label")?.classList.toggle("field-disabled", checkbox.checked);
+                };
+
+                syncManualScanState();
+                checkbox.addEventListener("change", syncManualScanState);
+            });
+
+            const setModalBodyState = (open) => {
+                document.body.classList.toggle("modal-open", open);
+            };
+
+            const contentPathState = {
+                loaded: false,
+                loadingPromise: null,
+                paths: [],
+            };
+
+            const syncContentPathSubmitState = (form) => {
+                if (!form) {
+                    return;
+                }
+                const select = form.querySelector("[data-content-path-select]");
+                const submitButton = form.querySelector("[data-content-path-submit]");
+                if (!select || !submitButton) {
+                    return;
+                }
+                submitButton.disabled = select.disabled || !select.value;
+            };
+
+            const renderContentPathPlaceholder = (select, message) => {
+                select.innerHTML = "";
+                const option = document.createElement("option");
+                option.value = "";
+                option.textContent = message;
+                option.selected = true;
+                select.append(option);
+                select.disabled = true;
+                syncContentPathSubmitState(select.closest("form"));
+            };
+
+            const applyContentPathOptions = (select, paths) => {
+                const selectedPath = select.dataset.selectedPath || "";
+                const normalizedPaths = Array.isArray(paths) ? paths.filter((path) => typeof path === "string" && path) : [];
+
+                select.innerHTML = "";
+                if (!normalizedPaths.length && !selectedPath) {
+                    renderContentPathPlaceholder(select, "Нет доступных путей внутри /content");
+                    return;
+                }
+
+                const missingSelectedPath = selectedPath && !normalizedPaths.includes(selectedPath);
+                const finalPaths = missingSelectedPath ? [selectedPath, ...normalizedPaths] : normalizedPaths;
+
+                finalPaths.forEach((path, index) => {
+                    const option = document.createElement("option");
+                    option.value = path;
+                    option.textContent = missingSelectedPath && index === 0 ? `${path} (текущий путь недоступен)` : path;
+                    if ((selectedPath && path === selectedPath) || (!selectedPath && index === 0)) {
+                        option.selected = true;
+                    }
+                    select.append(option);
+                });
+
+                select.disabled = false;
+                syncContentPathSubmitState(select.closest("form"));
+            };
+
+            const loadContentPaths = async () => {
+                if (contentPathState.loaded) {
+                    return contentPathState.paths;
+                }
+                if (contentPathState.loadingPromise) {
+                    return contentPathState.loadingPromise;
+                }
+
+                contentPathState.loadingPromise = fetch("/content-paths/options", { cache: "no-store" })
+                    .then(async (response) => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        const payload = await response.json();
+                        const paths = Array.isArray(payload.paths) ? payload.paths : [];
+                        contentPathState.paths = paths;
+                        contentPathState.loaded = true;
+                        return paths;
+                    })
+                    .finally(() => {
+                        contentPathState.loadingPromise = null;
+                    });
+
+                return contentPathState.loadingPromise;
+            };
+
+            const hydrateContentPathSelects = async (modal) => {
+                const selects = modal.querySelectorAll("[data-content-path-select]");
+                if (!selects.length) {
+                    return;
+                }
+
+                selects.forEach((select) => renderContentPathPlaceholder(select, "Загрузка списка папок..."));
+
+                try {
+                    const paths = await loadContentPaths();
+                    selects.forEach((select) => applyContentPathOptions(select, paths));
+                } catch (error) {
+                    console.debug("Не удалось загрузить список папок", error);
+                    selects.forEach((select) => renderContentPathPlaceholder(select, "Не удалось загрузить список папок"));
+                }
+            };
+
+            const openModal = (modalId) => {
+                const modal = document.querySelector(`[data-modal="${modalId}"]`);
+                if (!modal) {
+                    return;
+                }
+                modal.hidden = false;
+                setModalBodyState(true);
+                void hydrateContentPathSelects(modal);
+            };
+
+            const closeModal = (modal) => {
+                modal.hidden = true;
+                if (!document.querySelector(".app-modal:not([hidden])") && !document.querySelector(".preview-modal:not([hidden])")) {
+                    setModalBodyState(false);
+                }
+            };
+
+            document.querySelectorAll("[data-modal-open]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    openModal(button.dataset.modalOpen);
+                });
+            });
+
+            document.querySelectorAll(".app-modal[data-modal]").forEach((modal) => {
+                modal.querySelectorAll("[data-modal-close]").forEach((node) => {
+                    node.addEventListener("click", () => closeModal(modal));
+                });
+            });
+
+            if (window.__OPEN_MODAL_ID__) {
+                openModal(window.__OPEN_MODAL_ID__);
+            }
+
+            const previewModal = document.querySelector("[data-preview-modal]");
+            if (previewModal) {
+                const title = previewModal.querySelector("[data-preview-title]");
+                const image = previewModal.querySelector("[data-preview-image]");
+                const placeholder = previewModal.querySelector("[data-preview-placeholder]");
+                const originalLink = previewModal.querySelector("[data-preview-original]");
+
+                const openPreview = (button) => {
+                    title.textContent = button.dataset.fileName || "Файл";
+                    originalLink.href = button.dataset.originalUrl || "#";
+
+                    if (button.dataset.imageUrl) {
+                        image.src = button.dataset.imageUrl;
+                        image.hidden = false;
+                        placeholder.hidden = true;
+                    } else {
+                        image.hidden = true;
+                        image.removeAttribute("src");
+                        placeholder.hidden = false;
+                        placeholder.textContent = `Тип файла: ${button.dataset.fileKind || "document"}. Открой оригинал в новой вкладке.`;
+                    }
+
+                    previewModal.hidden = false;
+                    setModalBodyState(true);
+                };
+
+                const closePreview = () => {
+                    previewModal.hidden = true;
+                    image.hidden = true;
+                    image.removeAttribute("src");
+                    if (!document.querySelector(".app-modal:not([hidden])")) {
+                        setModalBodyState(false);
+                    }
+                };
+
+                document.querySelectorAll("[data-preview-open]").forEach((button) => {
+                    button.addEventListener("click", () => openPreview(button));
+                });
+
+                previewModal.querySelectorAll("[data-preview-close]").forEach((node) => {
+                    node.addEventListener("click", closePreview);
+                });
+
+                document.addEventListener("keydown", (event) => {
+                    if (event.key !== "Escape") {
+                        return;
+                    }
+
+                    const openModalNode = document.querySelector(".app-modal:not([hidden])");
+                    if (openModalNode) {
+                        closeModal(openModalNode);
+                        return;
+                    }
+
+                    if (!previewModal.hidden) {
+                        closePreview();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

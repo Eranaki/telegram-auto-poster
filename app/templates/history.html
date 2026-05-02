@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Глобальный журнал</p>
+        <h1>Полная история отправок</h1>
+        <p class="page-subtitle">Общий журнал по всем каналам, правилам и источникам.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <form method="get" class="filter-bar">
+        <label>
+            <span>Статус</span>
+            <select name="status">
+                {% for value, label in status_options %}
+                <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>Канал</span>
+            <select name="channel_id">
+                <option value="">Все</option>
+                {% for channel in channels %}
+                <option value="{{ channel.id }}" {% if channel_id == channel.id %}selected{% endif %}>{{ channel.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>Источник</span>
+            <select name="source_id">
+                <option value="">Все</option>
+                {% for source in sources %}
+                <option value="{{ source.id }}" {% if source_id == source.id %}selected{% endif %}>{{ source.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>Правило</span>
+            <select name="rule_id">
+                <option value="">Все</option>
+                <option value="manual" {% if rule_id == 'manual' %}selected{% endif %}>Отправлено вручную</option>
+                {% for rule in rules %}
+                <option value="{{ rule.id }}" {% if rule_id|string == rule.id|string %}selected{% endif %}>{{ rule.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>На странице</span>
+            <select name="per_page">
+                {% for value in page_size_options %}
+                <option value="{{ value }}" {% if current_per_page == value %}selected{% endif %}>{{ value }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="actions">
+            <button type="submit">Применить</button>
+        </div>
+    </form>
+
+    <div class="history-list">
+        {% set empty_state_message = "Записей по выбранным фильтрам нет." %}
+        {% include "_history_rows.html" %}
+    </div>
+
+    <div class="pagination-bar">
+        <div class="pagination-summary">
+            <span>Страница {{ current_page }} из {{ total_pages }}</span>
+            <span>{{ total_matching }} записей по текущему фильтру</span>
+        </div>
+        <div class="pagination-actions">
+            <a class="link-button {% if current_page <= 1 %}is-disabled{% endif %}" href="{{ request.url.include_query_params(page=current_page - 1, status=status, source_id=source_id, rule_id=rule_id, channel_id=channel_id, per_page=current_per_page) if current_page > 1 else '#' }}">Назад</a>
+            {% for item in page_numbers %}
+            <a class="page-chip {% if item == current_page %}is-active{% endif %}" href="{{ request.url.include_query_params(page=item, status=status, source_id=source_id, rule_id=rule_id, channel_id=channel_id, per_page=current_per_page) }}">{{ item }}</a>
+            {% endfor %}
+            <a class="link-button {% if current_page >= total_pages %}is-disabled{% endif %}" href="{{ request.url.include_query_params(page=current_page + 1, status=status, source_id=source_id, rule_id=rule_id, channel_id=channel_id, per_page=current_per_page) if current_page < total_pages else '#' }}">Вперёд</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

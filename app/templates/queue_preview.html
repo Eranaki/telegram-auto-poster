@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Очередь правила</p>
+        <h1>{{ rule.name }}</h1>
+        <p class="page-subtitle">
+            Канал: {{ rule.channel.name if rule.channel else "Неизвестный канал" }}.
+            Источники: {{ rule.attached_sources_label }}.
+        </p>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="notice">
+        {{ note }}
+    </div>
+
+    <div class="stats-grid compact-stats">
+        <article class="stat-card">
+            <span>Активных файлов</span>
+            <strong>{{ stats.active_files }}</strong>
+        </article>
+        <article class="stat-card">
+            <span>Уникальных осталось</span>
+            <strong>{{ stats.unique_remaining }}</strong>
+        </article>
+        <article class="stat-card">
+            <span>Записей в истории</span>
+            <strong>{{ stats.history_count }}</strong>
+        </article>
+    </div>
+
+    <div class="queue-preview-list">
+        {% if candidates %}
+            {% for file in candidates %}
+            <article class="queue-preview-card">
+                <button
+                    type="button"
+                    class="file-preview-button queue-preview-thumb"
+                    data-preview-open
+                    data-file-name="{{ file.relative_path }}"
+                    data-file-kind="{{ file.media_kind }}"
+                    data-original-url="{{ request.url_for('file_original', file_id=file.id) }}"
+                    data-image-url="{{ request.url_for('file_original', file_id=file.id) if file.media_kind in ['photo', 'animation'] else '' }}"
+                >
+                    <img
+                        src="{{ request.url_for('file_thumbnail', file_id=file.id) }}"
+                        alt="{{ file.relative_path }}"
+                        loading="lazy"
+                        width="{{ thumbnail_size_px }}"
+                        height="{{ thumbnail_size_px }}"
+                    />
+                </button>
+                <div class="queue-preview-body">
+                    <div class="queue-preview-title-row">
+                        <strong>{{ file.relative_path }}</strong>
+                        <span class="tag {% if file.is_active %}ok{% else %}muted{% endif %}">
+                            {{ "Активен" if file.is_active else "Отключен" }}
+                        </span>
+                    </div>
+                    <div class="queue-preview-meta">
+                        <span>{{ file.media_kind }}</span>
+                        <span>{{ file.human_size }}</span>
+                        <span>Публикаций: {{ file.post_count }}</span>
+                    </div>
+                    <small>{{ file.absolute_path }}</small>
+                    <small>Последняя отправка: {{ file.last_posted_at.strftime("%Y-%m-%d %H:%M") if file.last_posted_at else "Еще не отправлялся" }}</small>
+                    <div class="queue-preview-actions">
+                        <form method="post" action="/rules/{{ rule.id }}/files/{{ file.id }}/post-now">
+                            <button type="submit" class="secondary">Запостить сейчас</button>
+                        </form>
+                        <a class="link-button" href="{{ request.url_for('file_original', file_id=file.id) }}" target="_blank" rel="noopener">Открыть оригинал</a>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        {% else %}
+            <p class="empty-state">Подходящих кандидатов для предпросмотра сейчас нет.</p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Последние попытки</p>
+            <h2>История по правилу</h2>
+        </div>
+    </div>
+    <div class="panel-body">
+        <div class="history-list">
+            {% set items = recent_rule_posts %}
+            {% set empty_state_message = "У этого правила пока нет истории запусков." %}
+            {% include "_history_rows.html" %}
+        </div>
+    </div>
+</section>
+{% endblock %}

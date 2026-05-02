@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title or "Ошибка доступа" }}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23256cff'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='Segoe UI,Arial,sans-serif' font-size='22' font-weight='700' fill='white'%3ETAP%3C/text%3E%3C/svg%3E">
+    <style>
+        :root {
+            color-scheme: light dark;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: #f4f7fb;
+            color: #1c2740;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        .error-card {
+            width: min(520px, 100%);
+            background: #ffffff;
+            border: 1px solid #dbe3f1;
+            border-radius: 20px;
+            box-shadow: 0 18px 40px rgba(28, 39, 64, 0.12);
+            padding: 28px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 52px;
+            height: 52px;
+            border-radius: 16px;
+            background: #256cff;
+            color: #ffffff;
+            font-weight: 700;
+            margin-bottom: 18px;
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: 30px;
+            line-height: 1.15;
+        }
+
+        p {
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.55;
+            color: #4c5d80;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 150px;
+            min-height: 44px;
+            padding: 0 18px;
+            border-radius: 999px;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .button-primary {
+            background: #256cff;
+            color: #ffffff;
+        }
+
+        .button-secondary {
+            background: #eef3ff;
+            color: #1c2740;
+        }
+    </style>
+</head>
+<body>
+    <main class="error-card">
+        <div class="badge">403</div>
+        <h1>Действие не выполнено</h1>
+        <p>{{ message or "Запрос был отклонён системой защиты формы." }}</p>
+        <div class="actions">
+            <a href="{{ request.url.path }}" class="button button-primary">Обновить страницу</a>
+            <a href="/" class="button button-secondary">Вернуться на главную</a>
+        </div>
+    </main>
+</body>
+</html>

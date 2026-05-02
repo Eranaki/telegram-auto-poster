@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Канал</p>
+        <h1>{{ channel.name }}: история</h1>
+        <p class="page-subtitle">Фильтрация событий только по выбранному каналу.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Журнал канала</p>
+            <h2>История отправок</h2>
+        </div>
+    </div>
+
+    <form method="get" class="filter-bar">
+        <label>
+            <span>Статус</span>
+            <select name="status">
+                {% for value, label in status_options %}
+                <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>Правило</span>
+            <select name="rule_id">
+                <option value="">Все</option>
+                <option value="manual" {% if rule_id == 'manual' %}selected{% endif %}>Отправлено вручную</option>
+                {% for rule in rules %}
+                <option value="{{ rule.id }}" {% if rule_id|string == rule.id|string %}selected{% endif %}>{{ rule.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>На странице</span>
+            <select name="per_page">
+                {% for value in page_size_options %}
+                <option value="{{ value }}" {% if current_per_page == value %}selected{% endif %}>{{ value }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="actions">
+            <button type="submit">Применить</button>
+        </div>
+    </form>
+
+    <div class="history-list">
+        {% set empty_state_message = "Записей по выбранным фильтрам нет." %}
+        {% include "_history_rows.html" %}
+    </div>
+
+    <div class="pagination-bar">
+        <div class="pagination-summary">
+            <span>Страница {{ current_page }} из {{ total_pages }}</span>
+            <span>{{ total_matching }} записей по текущему фильтру</span>
+        </div>
+        <div class="pagination-actions">
+            <a class="link-button {% if current_page <= 1 %}is-disabled{% endif %}" href="{{ request.url.include_query_params(page=current_page - 1, status=status, rule_id=rule_id, per_page=current_per_page) if current_page > 1 else '#' }}">Назад</a>
+            {% for item in page_numbers %}
+            <a class="page-chip {% if item == current_page %}is-active{% endif %}" href="{{ request.url.include_query_params(page=item, status=status, rule_id=rule_id, per_page=current_per_page) }}">{{ item }}</a>
+            {% endfor %}
+            <a class="link-button {% if current_page >= total_pages %}is-disabled{% endif %}" href="{{ request.url.include_query_params(page=current_page + 1, status=status, rule_id=rule_id, per_page=current_per_page) if current_page < total_pages else '#' }}">Вперёд</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title or "Вход" }} • Telegram Auto Poster</title>
+    <script>
+        window.__CSRF_TOKEN__ = {{ csrf_token|tojson if csrf_token is defined else '""' }};
+        document.addEventListener("DOMContentLoaded", () => {
+            document.querySelectorAll('form[method="post"]').forEach((form) => {
+                if (!window.__CSRF_TOKEN__ || form.querySelector('input[name="csrf_token"]')) {
+                    return;
+                }
+                const input = document.createElement("input");
+                input.type = "hidden";
+                input.name = "csrf_token";
+                input.value = window.__CSRF_TOKEN__;
+                form.prepend(input);
+            });
+        });
+    </script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23256cff'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='Segoe UI,Arial,sans-serif' font-size='22' font-weight='700' fill='white'%3ETAP%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="{{ request.url_for('static', path='styles.css') }}">
+</head>
+<body>
+    <main class="login-shell">
+        <section class="login-card">
+            <div class="sidebar-brand login-brand">
+                <span class="sidebar-badge">TAP</span>
+                <div>
+                    <strong>Telegram Auto Poster</strong>
+                    <small>Вход в панель управления</small>
+                </div>
+            </div>
+
+            {% if error_message %}
+            <section class="notice notice-error">
+                {{ error_message }}
+            </section>
+            {% endif %}
+
+            <form method="post" action="/login" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="next_path" value="{{ next_path }}" />
+                <label class="full">
+                    <span>Логин</span>
+                    <input type="text" name="username" value="{{ login_form.username }}" autocomplete="username" required />
+                </label>
+                <label class="full">
+                    <span>Пароль</span>
+                    <input type="password" name="password" autocomplete="current-password" required />
+                </label>
+                <div class="actions full">
+                    <button type="submit">Войти</button>
+                </div>
+            </form>
+        </section>
+    </main>
+</body>
+</html>
