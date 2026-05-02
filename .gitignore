@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.env
+.env.local
+data/
+db/
+backups/
+auth-cookies.txt
+.session_secret
+app/.session_secret
+.idea/
+.vscode/

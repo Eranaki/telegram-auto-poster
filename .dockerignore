@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+data/
+db/
+backups/
+example-content/
+publish-kit/
+auth-cookies.txt
+.git/
+.github/
