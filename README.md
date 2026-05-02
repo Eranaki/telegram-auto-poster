@@ -61,7 +61,7 @@ services:
     volumes:
       - ./data:/data
       - ./db:/db
-      - ./example-content:/content/example:ro
+      - ./content:/content:ro
 ```
 
 ## Первый вход
@@ -205,7 +205,7 @@ services:
 volumes:
   - ./data:/data
   - ./db:/db
-  - ./example-content:/content/example:ro
+  - ./content:/content:ro
 ```
 
 Можно подключать несколько папок:
