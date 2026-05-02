@@ -1,6 +1,6 @@
 services:
   app:
-    image: telegram-folder-poster:latest
+    image: ghcr.io/eranaki/telegram-auto-poster:latest
     container_name: telegram-folder-poster
     restart: unless-stopped
     ports:
