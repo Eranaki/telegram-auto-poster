@@ -14,4 +14,4 @@ services:
     volumes:
       - ./data:/data
       - ./db:/db
-      - ./example-content:/content/example:ro
+      - ./content:/example:ro
