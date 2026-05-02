@@ -42,32 +42,12 @@
 
 ## Быстрый старт
 
-1. Клонируйте или скачайте проект.
-2. Соберите Docker-образ:
-
-```powershell
-docker build -t telegram-folder-poster:latest .
-```
-
-3. Подготовьте папки `data`, `db` и `example-content`.
-4. Запустите контейнер:
-
-```powershell
-docker compose up -d
-```
-
-5. Откройте веб-интерфейс по адресу [http://localhost:1338](http://localhost:1338).
-6. Войдите под стандартными данными `admin / admin`.
-7. Сразу после первого входа откройте страницу аккаунта и измените логин и пароль администратора.
-
-## Запуск через Docker Compose
-
 Текущий пример `docker-compose.yml` в репозитории:
 
 ```yaml
 services:
   app:
-    image: telegram-folder-poster:latest
+    image: ghcr.io/eranaki/telegram-auto-poster:latest
     container_name: telegram-folder-poster
     restart: unless-stopped
     ports:
@@ -82,35 +62,6 @@ services:
       - ./data:/data
       - ./db:/db
       - ./example-content:/content/example:ro
-```
-
-Если проект будет опубликован как готовый образ в GHCR или Docker Hub, строку `image:` можно будет заменить на адрес опубликованного контейнера без локальной ручной сборки.
-
-## Запуск через Portainer
-
-Для Portainer обычно удобнее использовать уже готовый образ, а не `build: .`, потому что web editor стека часто не имеет корректного build context для локального `Dockerfile`.
-
-Минимальный пример стека:
-
-```yaml
-services:
-  app:
-    image: telegram-folder-poster:latest
-    container_name: telegram-folder-poster
-    restart: unless-stopped
-    ports:
-      - "1338:8080"
-    environment:
-      APP_DATA_DIR: /data
-      APP_DB_PATH: /db/app.db
-      APP_TIMEZONE: Europe/Moscow
-      SCHEDULER_TICK_SECONDS: 30
-      SCAN_TICK_SECONDS: 120
-      APP_SESSION_SECRET: CHANGE_ME
-    volumes:
-      - "/srv/tap/data:/data"
-      - "/srv/tap/db:/db"
-      - "/srv/tap/content:/content:ro"
 ```
 
 ## Первый вход
