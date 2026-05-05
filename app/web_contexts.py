@@ -81,8 +81,21 @@ def annotate_history_item(item: PostHistory, thumbnail_size_px: int = 96) -> Pos
         "skipped": ("Пропущено", "muted"),
     }
     item.status_label, item.status_badge_class = status_map.get(item.status, (item.status, "muted"))
-    item.rule_display_name = "Отправлено вручную" if getattr(item, "manual_trigger", False) else (
-        item.rule.name if item.rule else "Неизвестное правило"
+    item.rule_display_name = (
+        "Отправлено вручную"
+        if getattr(item, "manual_trigger", False)
+        else (item.rule.name if item.rule else "Неизвестное правило")
+    )
+    item.channel_display_name = (
+        item.rule.channel.name
+        if item.rule is not None and getattr(item.rule, "channel", None) is not None
+        else "Канал не указан"
+    )
+    item.file_display_name = item.file.relative_path if item.file is not None else "Файл не указан"
+    item.attempted_at_display = (
+        item.attempted_at.strftime("%Y-%m-%d %H:%M")
+        if getattr(item, "attempted_at", None) is not None
+        else "Время не указано"
     )
     if item.file is not None:
         annotate_file_record(item.file, thumbnail_size_px)
@@ -94,7 +107,6 @@ def annotate_history_item(item: PostHistory, thumbnail_size_px: int = 96) -> Pos
         item.preview_original_url = ""
         item.preview_image_url = ""
     return item
-
 
 def annotate_history_items(items: list[PostHistory], thumbnail_size_px: int = 96) -> list[PostHistory]:
     return [annotate_history_item(item, thumbnail_size_px) for item in items]
@@ -516,3 +528,4 @@ def get_file_record_or_404(session: Session, file_id: int) -> FileRecord:
     if file_record is None:
         raise HTTPException(status_code=404, detail="Файл не найден")
     return file_record
+
