@@ -1186,6 +1186,11 @@ select:disabled {
     overscroll-behavior: contain;
 }
 
+.app-modal[hidden],
+.preview-modal[hidden] {
+    display: none !important;
+}
+
 .app-modal-backdrop,
 .preview-modal-backdrop {
     position: absolute;
