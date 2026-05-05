@@ -26,6 +26,7 @@ from app.services.scanner import (
 from app.web_contexts import (
     SELECTION_MODE_LABELS,
     SOURCE_SELECTION_MODE_LABELS,
+    annotate_rule,
     annotate_file_record,
     annotate_history_items,
     build_channel_overview_context,
