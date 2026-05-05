@@ -1178,6 +1178,12 @@ select:disabled {
     position: fixed;
     inset: 0;
     z-index: 40;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 24px 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .app-modal-backdrop,
@@ -1191,12 +1197,16 @@ select:disabled {
 .preview-modal-dialog {
     position: relative;
     width: min(760px, calc(100vw - 32px));
-    margin: 40px auto;
+    margin: 0;
     background: var(--surface);
     border-radius: 24px;
     border: 1px solid var(--border);
     box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
     overflow: hidden;
+    max-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
 }
 
 .app-modal-dialog-wide {
@@ -1208,6 +1218,12 @@ select:disabled {
 .preview-modal-header,
 .preview-modal-body {
     padding: 20px;
+}
+
+.app-modal-body,
+.preview-modal-body {
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .app-modal-header,
@@ -1406,5 +1422,16 @@ body.modal-open {
 
     .history-time {
         white-space: normal;
+    }
+
+    .app-modal,
+    .preview-modal {
+        padding: 12px;
+    }
+
+    .app-modal-dialog,
+    .preview-modal-dialog {
+        width: min(100%, calc(100vw - 24px));
+        max-height: calc(100vh - 24px);
     }
 }
