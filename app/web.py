@@ -1534,6 +1534,7 @@ async def create_rule(
     chat_id_override: str = Form(default=""),
     send_as_document: str | None = Form(default=None),
     convert_heic_to_jpeg: str | None = Form(default=None),
+    optimize_large_photos: str | None = Form(default=None),
     enabled: str | None = Form(default=None),
     _: None = Depends(csrf_protect),
     session: Session = Depends(get_session),
@@ -1561,6 +1562,7 @@ async def create_rule(
             "repeat_after_exhaustion": to_bool(repeat_after_exhaustion),
             "send_as_document": to_bool(send_as_document),
             "convert_heic_to_jpeg": to_bool(convert_heic_to_jpeg),
+            "optimize_large_photos": to_bool(optimize_large_photos),
             "enabled": to_bool(enabled),
         }
 
@@ -1616,6 +1618,7 @@ async def create_rule(
         chat_id_override=chat_id_override.strip() or None,
         send_as_document=to_bool(send_as_document),
         convert_heic_to_jpeg=to_bool(convert_heic_to_jpeg),
+        optimize_large_photos=to_bool(optimize_large_photos),
         enabled=to_bool(enabled),
     )
     session.add(rule)
@@ -1672,6 +1675,7 @@ async def import_rule_to_channel(
         chat_id_override=template_rule.chat_id_override,
         send_as_document=template_rule.send_as_document,
         convert_heic_to_jpeg=template_rule.convert_heic_to_jpeg,
+        optimize_large_photos=getattr(template_rule, "optimize_large_photos", False),
         next_run_at=None,
         last_run_at=None,
         last_result=None,
@@ -1710,6 +1714,7 @@ async def update_rule(
     chat_id_override: str = Form(default=""),
     send_as_document: str | None = Form(default=None),
     convert_heic_to_jpeg: str | None = Form(default=None),
+    optimize_large_photos: str | None = Form(default=None),
     enabled: str | None = Form(default=None),
     _: None = Depends(csrf_protect),
     session: Session = Depends(get_session),
@@ -1759,6 +1764,7 @@ async def update_rule(
     rule.chat_id_override = chat_id_override.strip() or None
     rule.send_as_document = to_bool(send_as_document)
     rule.convert_heic_to_jpeg = to_bool(convert_heic_to_jpeg)
+    rule.optimize_large_photos = to_bool(optimize_large_photos)
     rule.enabled = to_bool(enabled)
     rule.next_run_at = compute_next_run(rule)
     for linked_source_id in normalized_source_ids:

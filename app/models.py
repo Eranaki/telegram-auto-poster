@@ -178,6 +178,7 @@ class PostingRule(TimestampMixin, Base):
     chat_id_override: Mapped[str | None] = mapped_column(String(255))
     send_as_document: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     convert_heic_to_jpeg: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    optimize_large_photos: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     last_source_id: Mapped[int | None] = mapped_column(ForeignKey("content_sources.id"))
     next_run_at: Mapped[datetime | None] = mapped_column(DateTime)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime)

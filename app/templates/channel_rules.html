@@ -219,6 +219,10 @@
                     <span>Автоматически конвертировать HEIC в JPEG перед отправкой</span>
                 </label>
                 <label class="checkbox">
+                    <input type="checkbox" name="optimize_large_photos" {% if rule_form.optimize_large_photos %}checked{% endif %} />
+                    <span>Автоматически уменьшать большие изображения</span>
+                </label>
+                <label class="checkbox">
                     <input type="checkbox" name="enabled" {% if rule_form.enabled %}checked{% endif %} />
                     <span>Включить правило сразу</span>
                 </label>
@@ -260,6 +264,7 @@
                     <li><strong>Повторять после исчерпания</strong> — позволяет снова запускать правило по тем же файлам после полного прохода.</li>
                     <li><strong>Всегда отправлять как документ</strong> — полезно, если Telegram плохо обрабатывает медиа как фото или видео.</li>
                     <li><strong>Автоматически конвертировать HEIC в JPEG</strong> — для проблемных HEIC/HEIF-файлов перед отправкой как фото.</li>
+                    <li><strong>Автоматически уменьшать большие изображения</strong> — создает временную JPEG-копию в пределах ограничений Telegram, не изменяя оригинал.</li>
                 </ul>
             </div>
         </div>

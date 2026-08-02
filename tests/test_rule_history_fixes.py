@@ -19,6 +19,7 @@ os.environ.pop("DATABASE_URL", None)
 from fastapi import FastAPI, HTTPException  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from PIL import Image  # noqa: E402
 from sqlalchemy import create_engine, inspect, select, text  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
@@ -36,6 +37,9 @@ from app.models import (  # noqa: E402
 )
 from app.services.telegram import (  # noqa: E402
     FileNotFoundPublishError,
+    PhotoDocumentFallbackError,
+    photo_dimensions_are_valid,
+    prepare_large_photo,
     publish_file,
     render_caption,
 )
@@ -71,6 +75,7 @@ class TelegramResponse:
 class SequencedTelegramClient:
     responses: list[TelegramResponse] = []
     calls: list[tuple[str, set[str]]] = []
+    uploaded_paths: list[Path] = []
 
     def __init__(self, *args, **kwargs):
         pass
@@ -83,6 +88,8 @@ class SequencedTelegramClient:
 
     async def post(self, url, data, files):
         self.__class__.calls.append((url, set(files)))
+        uploaded_file = next(iter(files.values()))[1]
+        self.__class__.uploaded_paths.append(Path(uploaded_file.name))
         return self.__class__.responses.pop(0)
 
 
@@ -126,6 +133,7 @@ class RuleHistoryFixTests(unittest.TestCase):
             template_rule = make_rule(first_channel.id, source.id, "Template")
             template_rule.include_filename_in_caption = True
             template_rule.include_file_path_in_caption = True
+            template_rule.optimize_large_photos = True
             session.add(template_rule)
             session.flush()
             session.add(RuleSource(rule_id=template_rule.id, source_id=source.id))
@@ -147,6 +155,7 @@ class RuleHistoryFixTests(unittest.TestCase):
             self.assertIsNotNone(copied_rule)
             self.assertTrue(copied_rule.include_filename_in_caption)
             self.assertTrue(copied_rule.include_file_path_in_caption)
+            self.assertTrue(copied_rule.optimize_large_photos)
             self.assertEqual(
                 session.scalars(select(RuleSource.source_id).where(RuleSource.rule_id == copied_rule.id)).all(),
                 [source.id],
@@ -429,6 +438,188 @@ class CaptionFilenameTests(unittest.TestCase):
                 render_caption(channel, rule, file_record)
 
 
+class PhotoOptimizationTests(unittest.TestCase):
+    def test_large_dimensions_are_resized_without_changing_original(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "large.png"
+            Image.new("RGB", (80, 40), (20, 40, 60)).save(source_path)
+
+            with patch("app.services.telegram.PHOTO_MAX_DIMENSION_SUM", 100), patch(
+                "app.services.telegram.PHOTO_RESIZE_DIMENSION_SUM", 90
+            ):
+                optimized_path, force_document = prepare_large_photo(source_path)
+
+            self.assertFalse(force_document)
+            self.assertIsNotNone(optimized_path)
+            with Image.open(source_path) as original:
+                self.assertEqual(original.size, (80, 40))
+            with Image.open(optimized_path) as optimized:
+                self.assertLessEqual(sum(optimized.size), 90)
+                self.assertEqual(optimized.format, "JPEG")
+            optimized_path.unlink()
+
+    def test_large_file_is_recompressed_and_extreme_ratio_uses_document(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            large_file_path = Path(temp_dir) / "large.bmp"
+            Image.new("RGB", (80, 80), (100, 120, 140)).save(large_file_path)
+            with patch("app.services.telegram.PHOTO_TARGET_BYTES", 1_000):
+                optimized_path, force_document = prepare_large_photo(large_file_path)
+
+            self.assertFalse(force_document)
+            self.assertIsNotNone(optimized_path)
+            self.assertLessEqual(optimized_path.stat().st_size, 1_000)
+            optimized_path.unlink()
+
+            panoramic_path = Path(temp_dir) / "panoramic.jpg"
+            Image.new("RGB", (100, 2), (10, 20, 30)).save(panoramic_path)
+            optimized_path, force_document = prepare_large_photo(panoramic_path)
+            self.assertIsNone(optimized_path)
+            self.assertTrue(force_document)
+
+            with patch("app.services.telegram.PHOTO_MAX_DIMENSION_SUM", 100), patch(
+                "app.services.telegram.PHOTO_MAX_DECODE_PIXELS", 1_000
+            ):
+                optimized_path, force_document = prepare_large_photo(large_file_path)
+            self.assertIsNone(optimized_path)
+            self.assertTrue(force_document)
+
+    def test_dimension_boundaries_are_validated(self):
+        self.assertTrue(photo_dimensions_are_valid(5_000, 5_000))
+        self.assertTrue(photo_dimensions_are_valid(20, 1))
+        self.assertFalse(photo_dimensions_are_valid(5_001, 5_000))
+        self.assertFalse(photo_dimensions_are_valid(21, 1))
+
+    def test_optimization_checkbox_sends_extreme_ratio_as_document(self):
+        channel = SimpleNamespace(
+            bot_token="token",
+            chat_id="chat",
+            message_thread_id=None,
+            default_caption=None,
+            disable_notification=False,
+            protect_content=False,
+            parse_mode=None,
+        )
+        rule = SimpleNamespace(
+            chat_id_override=None,
+            caption_template=None,
+            convert_heic_to_jpeg=False,
+            send_as_document=False,
+            optimize_large_photos=True,
+            include_filename_in_caption=False,
+        )
+        SequencedTelegramClient.calls = []
+        SequencedTelegramClient.responses = [
+            TelegramResponse(200, {"ok": True, "result": {"message_id": 456}}),
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "panoramic.jpg"
+            Image.new("RGB", (100, 2), (10, 20, 30)).save(source_path)
+            file_record = SimpleNamespace(
+                absolute_path=str(source_path),
+                relative_path="panoramic.jpg",
+                media_kind="photo",
+                source=SimpleNamespace(name="Source"),
+            )
+            with patch("app.services.telegram.httpx.AsyncClient", SequencedTelegramClient):
+                message_id = asyncio.run(publish_file(channel, rule, file_record))
+
+        self.assertEqual(message_id, "456")
+        self.assertEqual(len(SequencedTelegramClient.calls), 1)
+        self.assertTrue(SequencedTelegramClient.calls[0][0].endswith("/sendDocument"))
+        self.assertEqual(SequencedTelegramClient.calls[0][1], {"document"})
+
+    def test_optimization_checkbox_uses_and_cleans_temporary_jpeg(self):
+        channel = SimpleNamespace(
+            bot_token="token",
+            chat_id="chat",
+            message_thread_id=None,
+            default_caption=None,
+            disable_notification=False,
+            protect_content=False,
+            parse_mode=None,
+        )
+        rule = SimpleNamespace(
+            chat_id_override=None,
+            caption_template=None,
+            convert_heic_to_jpeg=False,
+            send_as_document=False,
+            optimize_large_photos=True,
+            include_filename_in_caption=False,
+        )
+        SequencedTelegramClient.calls = []
+        SequencedTelegramClient.uploaded_paths = []
+        SequencedTelegramClient.responses = [
+            TelegramResponse(200, {"ok": True, "result": {"message_id": 789}}),
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "large.png"
+            Image.new("RGB", (80, 40), (20, 40, 60)).save(source_path)
+            file_record = SimpleNamespace(
+                absolute_path=str(source_path),
+                relative_path="large.png",
+                media_kind="photo",
+                source=SimpleNamespace(name="Source"),
+            )
+            with patch("app.services.telegram.PHOTO_MAX_DIMENSION_SUM", 100), patch(
+                "app.services.telegram.PHOTO_RESIZE_DIMENSION_SUM", 90
+            ), patch("app.services.telegram.httpx.AsyncClient", SequencedTelegramClient):
+                message_id = asyncio.run(publish_file(channel, rule, file_record))
+
+            uploaded_path = SequencedTelegramClient.uploaded_paths[0]
+            self.assertEqual(message_id, "789")
+            self.assertNotEqual(uploaded_path, source_path)
+            self.assertFalse(uploaded_path.exists())
+            self.assertTrue(source_path.exists())
+            self.assertTrue(SequencedTelegramClient.calls[0][0].endswith("/sendPhoto"))
+
+    def test_optimizer_document_failure_is_requeueable_and_caption_fails_before_processing(self):
+        channel = SimpleNamespace(
+            bot_token="token",
+            chat_id="chat",
+            message_thread_id=None,
+            default_caption=None,
+            disable_notification=False,
+            protect_content=False,
+            parse_mode=None,
+        )
+        rule = SimpleNamespace(
+            chat_id_override=None,
+            caption_template=None,
+            convert_heic_to_jpeg=False,
+            send_as_document=False,
+            optimize_large_photos=True,
+            include_filename_in_caption=False,
+        )
+        SequencedTelegramClient.calls = []
+        SequencedTelegramClient.responses = [
+            TelegramResponse(400, {"ok": False, "description": "Bad Request: document rejected"}),
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "panoramic.jpg"
+            Image.new("RGB", (100, 2), (10, 20, 30)).save(source_path)
+            file_record = SimpleNamespace(
+                absolute_path=str(source_path),
+                relative_path="panoramic.jpg",
+                media_kind="photo",
+                source=SimpleNamespace(name="Source"),
+            )
+            with patch("app.services.telegram.httpx.AsyncClient", SequencedTelegramClient):
+                with self.assertRaises(PhotoDocumentFallbackError):
+                    asyncio.run(publish_file(channel, rule, file_record))
+
+            rule.caption_template = "{invalid}"
+            with patch("app.services.telegram.prepare_large_photo") as prepare_mock, patch(
+                "app.services.telegram.httpx.AsyncClient"
+            ) as client_mock:
+                with self.assertRaisesRegex(RuntimeError, "проверьте шаблон"):
+                    asyncio.run(publish_file(channel, rule, file_record))
+            prepare_mock.assert_not_called()
+            client_mock.assert_not_called()
+
+
 class CaptionMigrationTests(unittest.TestCase):
     def test_new_and_legacy_databases_have_caption_filename_columns(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -437,6 +628,7 @@ class CaptionMigrationTests(unittest.TestCase):
             new_columns = {column["name"] for column in inspect(new_engine).get_columns("posting_rules")}
             self.assertIn("include_filename_in_caption", new_columns)
             self.assertIn("include_file_path_in_caption", new_columns)
+            self.assertIn("optimize_large_photos", new_columns)
             new_engine.dispose()
 
             legacy_engine = create_engine(f"sqlite:///{Path(temp_dir) / 'legacy.db'}")
@@ -459,14 +651,15 @@ class CaptionMigrationTests(unittest.TestCase):
             legacy_columns = {column["name"] for column in inspect(legacy_engine).get_columns("posting_rules")}
             self.assertIn("include_filename_in_caption", legacy_columns)
             self.assertIn("include_file_path_in_caption", legacy_columns)
+            self.assertIn("optimize_large_photos", legacy_columns)
             with legacy_engine.connect() as connection:
                 values = connection.execute(
                     text(
-                        "SELECT include_filename_in_caption, include_file_path_in_caption "
+                        "SELECT include_filename_in_caption, include_file_path_in_caption, optimize_large_photos "
                         "FROM posting_rules WHERE id = 1"
                     )
                 ).one()
-            self.assertEqual(tuple(values), (0, 0))
+            self.assertEqual(tuple(values), (0, 0, 0))
             legacy_engine.dispose()
 
 

@@ -128,6 +128,8 @@ sequenceDiagram
 
 При requeueable file error индексная запись файла деактивируется, а failed history сохраняется. К ним относятся missing file и отказ единственного `sendDocument` fallback после `PHOTO_INVALID_DIMENSIONS`. `POST /history/{history_id}/requeue` повторно проверяет source root относительно `/content`, file containment, recursion/type filters и текущую связь source с rule, обновляет metadata и реактивирует файл. History row получает отметку о возврате и повторно не обрабатывается. Endpoint не вызывает Telegram и не меняет schedule; после commit файл снова доступен обычному picker. Общий race с automatic scan остается в рамках KI-010.
 
+Optional photo optimization выполняется только для rule с `optimize_large_photos=true`: metadata/pixel cap проверяются до decode, затем Pillow создает временный JPEG с безопасными dimensions/size, а оригинал остается на read-only content mount. Все temporary variants очищаются при encoder/publisher errors и после завершения внешнего запроса. CPU/decode работа пока выполняется синхронно и остается частью общего KI-008.
+
 ## Границы Доверия
 
 - Браузер администратора имеет полный контроль над каналами, источниками и отправкой.

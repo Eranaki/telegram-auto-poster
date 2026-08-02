@@ -56,6 +56,10 @@ def migrate_schema() -> None:
                 connection.execute(
                     text("ALTER TABLE posting_rules ADD COLUMN convert_heic_to_jpeg INTEGER DEFAULT 0 NOT NULL")
                 )
+            if "optimize_large_photos" not in rule_columns:
+                connection.execute(
+                    text("ALTER TABLE posting_rules ADD COLUMN optimize_large_photos INTEGER DEFAULT 0 NOT NULL")
+                )
             if "source_selection_mode" not in rule_columns:
                 connection.execute(
                     text("ALTER TABLE posting_rules ADD COLUMN source_selection_mode VARCHAR(40) DEFAULT 'merged_pool' NOT NULL")
