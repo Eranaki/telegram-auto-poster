@@ -120,7 +120,7 @@
 
 ### KI-028: tests и quality gates отсутствуют
 
-**Частично исправлено.** Добавлены стандартные `unittest` для тем Telegram, lazy content browser, rule import, history filters/requeue, filename captions и photo optimization, включая временную SQLite, mocked Telegram HTTP и FastAPI route checks. Отдельные CI jobs, lint, formatting, type checking и coverage по-прежнему отсутствуют.
+**Частично исправлено.** Добавлены стандартные `unittest` для тем Telegram, lazy content browser, rule import, history filters/requeue, filename captions, photo optimization и processing logs, включая временную SQLite, mocked Telegram HTTP и FastAPI route checks. Отдельные CI jobs, lint, formatting, type checking и coverage по-прежнему отсутствуют.
 
 ### KI-029: local DB paths расходятся
 
@@ -148,7 +148,7 @@
 
 ### KI-034: missing file нельзя было точечно вернуть в picker
 
-**Исправлено.** Missing-file publication и повторный отказ document fallback после `PHOTO_INVALID_DIMENSIONS` деактивируют индексную запись. Failed history показывает однократный CSRF-protected requeue action, который проверяет текущий source/rule, `/content` containment, recursion и file type, обновляет metadata и активирует файл без публикации. Race с automatic scan остается частью KI-010.
+**Исправлено.** Missing-file publication и повторный отказ document fallback после `PHOTO_INVALID_DIMENSIONS` деактивируют индексную запись. Failed history, включая legacy raw `PHOTO_INVALID_DIMENSIONS`, показывает однократный CSRF-protected requeue action, который проверяет текущий source/rule, `/content` containment, recursion и file type, обновляет metadata и активирует файл без публикации. Race с automatic scan остается частью KI-010.
 
 ### KI-001: три rule endpoint падали с `NameError`
 

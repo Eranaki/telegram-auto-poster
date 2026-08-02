@@ -8,9 +8,8 @@ from app.models import ChannelSource, ContentSource, FileRecord, PostHistory, Po
 from app.services.previews import preview_exists
 from app.services.scanner import MEDIA_TYPE_LABELS
 from app.services.telegram import (
-    MISSING_FILE_ERROR_PREFIX,
     MISSING_FILE_REQUEUED_MARKER,
-    PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX,
+    is_requeueable_history_message,
 )
 from app.web_sources import annotate_source, attach_source_file_counts, build_source_form_defaults
 
@@ -97,13 +96,14 @@ def annotate_history_item(item: PostHistory, thumbnail_size_px: int = 96) -> Pos
         else "Канал не указан"
     )
     item.file_display_name = item.file.relative_path if item.file is not None else "Файл не указан"
-    item.can_requeue_missing_file = bool(
+    item.can_requeue_file = bool(
         item.status == "failed"
         and item.file is not None
         and item.rule is not None
-        and (item.message or "").startswith((MISSING_FILE_ERROR_PREFIX, PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX))
+        and is_requeueable_history_message(item.message, item.file.media_kind)
         and MISSING_FILE_REQUEUED_MARKER not in (item.message or "")
     )
+    item.has_processing_log = bool((getattr(item, "processing_log", None) or "").strip())
     item.attempted_at_display = (
         item.attempted_at.strftime("%Y-%m-%d %H:%M")
         if getattr(item, "attempted_at", None) is not None

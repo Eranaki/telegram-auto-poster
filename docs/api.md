@@ -95,8 +95,8 @@ Endpoint не обходит вложенные уровни. Реальный r
 | --- | --- | --- |
 | GET | `/channels/{channel_id}/rules/{rule_id}/edit` | Rule edit form, проверяет ownership |
 | GET | `/rules/{rule_id}/queue` | Preview до 30 candidates |
-| GET | `/history` | Global filtered/paginated history; blank optional IDs означают отсутствие фильтра |
-| POST | `/history/{history_id}/requeue` | Однократно проверяет и реактивирует missing file или failed photo-document fallback без публикации и изменения schedule |
+| GET | `/history` | Global filtered/paginated history; blank optional IDs означают отсутствие фильтра; image processing log показывается в modal |
+| POST | `/history/{history_id}/requeue` | Однократно проверяет и реактивирует missing file, failed photo-document fallback или legacy `PHOTO_INVALID_DIMENSIONS` без публикации и изменения schedule |
 | POST | `/rules` | Создает rule и source links; принимает filename/path caption и photo-optimization flags; enabled rule сразу due (`next_run_at=NULL`) |
 | POST | `/channels/{channel_id}/rules/import` | Копирует rule, links, caption и photo-optimization flags в другой канал |
 | POST | `/channels/{channel_id}/rules/{rule_id}/edit` | Обновляет rule, links и `next_run_at` |

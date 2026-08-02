@@ -19,6 +19,7 @@ os.environ.pop("DATABASE_URL", None)
 from fastapi import FastAPI, HTTPException  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+import httpx  # noqa: E402
 from PIL import Image  # noqa: E402
 from sqlalchemy import create_engine, inspect, select, text  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
@@ -38,6 +39,9 @@ from app.models import (  # noqa: E402
 from app.services.telegram import (  # noqa: E402
     FileNotFoundPublishError,
     PhotoDocumentFallbackError,
+    TelegramPublishError,
+    add_processing_log,
+    is_requeueable_history_message,
     photo_dimensions_are_valid,
     prepare_large_photo,
     publish_file,
@@ -319,8 +323,9 @@ class RuleHistoryFixTests(unittest.TestCase):
                 media_kind="photo",
                 source=SimpleNamespace(name="Source"),
             )
+            processing_log: list[str] = []
             with patch("app.services.telegram.httpx.AsyncClient", SequencedTelegramClient):
-                message_id = asyncio.run(publish_file(channel, rule, file_record))
+                message_id = asyncio.run(publish_file(channel, rule, file_record, processing_log))
 
         self.assertEqual(message_id, "321")
         self.assertEqual(len(SequencedTelegramClient.calls), 2)
@@ -328,6 +333,8 @@ class RuleHistoryFixTests(unittest.TestCase):
         self.assertEqual(SequencedTelegramClient.calls[0][1], {"photo"})
         self.assertTrue(SequencedTelegramClient.calls[1][0].endswith("/sendDocument"))
         self.assertEqual(SequencedTelegramClient.calls[1][1], {"document"})
+        self.assertIn("Результат sendPhoto: PHOTO_INVALID_DIMENSIONS.", processing_log)
+        self.assertIn("Итог: файл успешно отправлен через sendDocument.", processing_log)
 
     def test_failed_document_fallback_stops_and_can_be_requeued(self):
         source_root = Path(self.temp_dir.name) / "fallback-source"
@@ -374,6 +381,8 @@ class RuleHistoryFixTests(unittest.TestCase):
             self.assertEqual(len(SequencedTelegramClient.calls), 2)
             self.assertFalse(file_record.is_active)
             self.assertTrue(history.message.startswith("Не удалось отправить проблемное фото как документ:"))
+            self.assertIn("PHOTO_INVALID_DIMENSIONS", history.processing_log)
+            self.assertIn("дальнейших попыток не будет", history.processing_log)
 
             with patch("app.services.scanner.CONTENT_ROOT", source_root):
                 requeue_response = asyncio.run(
@@ -386,6 +395,55 @@ class RuleHistoryFixTests(unittest.TestCase):
                 )
             self.assertEqual(requeue_response.status_code, 303)
             self.assertTrue(file_record.is_active)
+
+    def test_legacy_photo_dimensions_error_can_be_requeued(self):
+        source_root = Path(self.temp_dir.name) / "legacy-dimensions-source"
+        source_root.mkdir()
+        file_path = source_root / "photo.jpg"
+        file_path.write_bytes(b"restored")
+
+        with self.session_factory() as session:
+            _, source, rule = self.seed_channel_source_rule(session, source_path=str(source_root))
+            file_record = FileRecord(
+                source_id=source.id,
+                relative_path="photo.jpg",
+                absolute_path=str(file_path),
+                media_kind="photo",
+                size=file_path.stat().st_size,
+                mtime_ns=file_path.stat().st_mtime_ns,
+                fingerprint="fingerprint",
+                is_active=True,
+            )
+            session.add(file_record)
+            session.flush()
+            history = PostHistory(
+                rule_id=rule.id,
+                source_id=source.id,
+                file_id=file_record.id,
+                status="failed",
+                message="Ошибка Telegram API: Bad Request: PHOTO_INVALID_DIMENSIONS",
+            )
+            session.add(history)
+            session.commit()
+
+            with patch("app.services.scanner.CONTENT_ROOT", source_root):
+                response = asyncio.run(
+                    requeue_missing_history_file(
+                        history_id=history.id,
+                        return_to="/history",
+                        _=None,
+                        session=session,
+                    )
+                )
+
+            self.assertEqual(response.status_code, 303)
+            self.assertIn("Файл возвращен в очередь", history.message)
+
+    def test_legacy_dimensions_match_is_exact_and_photo_only(self):
+        legacy_message = "Ошибка Telegram API: Bad Request: PHOTO_INVALID_DIMENSIONS"
+        self.assertTrue(is_requeueable_history_message(legacy_message, "photo"))
+        self.assertFalse(is_requeueable_history_message(legacy_message, "document"))
+        self.assertFalse(is_requeueable_history_message(f"prefix {legacy_message}", "photo"))
 
 
 class CaptionFilenameTests(unittest.TestCase):
@@ -439,6 +497,13 @@ class CaptionFilenameTests(unittest.TestCase):
 
 
 class PhotoOptimizationTests(unittest.TestCase):
+    def test_processing_log_is_bounded(self):
+        processing_log: list[str] = []
+        for _ in range(40):
+            add_processing_log(processing_log, "x" * 600)
+        self.assertEqual(len(processing_log), 32)
+        self.assertTrue(all(len(entry) <= 500 for entry in processing_log))
+
     def test_large_dimensions_are_resized_without_changing_original(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             source_path = Path(temp_dir) / "large.png"
@@ -562,10 +627,11 @@ class PhotoOptimizationTests(unittest.TestCase):
                 media_kind="photo",
                 source=SimpleNamespace(name="Source"),
             )
+            processing_log: list[str] = []
             with patch("app.services.telegram.PHOTO_MAX_DIMENSION_SUM", 100), patch(
                 "app.services.telegram.PHOTO_RESIZE_DIMENSION_SUM", 90
             ), patch("app.services.telegram.httpx.AsyncClient", SequencedTelegramClient):
-                message_id = asyncio.run(publish_file(channel, rule, file_record))
+                message_id = asyncio.run(publish_file(channel, rule, file_record, processing_log))
 
             uploaded_path = SequencedTelegramClient.uploaded_paths[0]
             self.assertEqual(message_id, "789")
@@ -573,6 +639,9 @@ class PhotoOptimizationTests(unittest.TestCase):
             self.assertFalse(uploaded_path.exists())
             self.assertTrue(source_path.exists())
             self.assertTrue(SequencedTelegramClient.calls[0][0].endswith("/sendPhoto"))
+            self.assertTrue(any("Причина:" in line for line in processing_log))
+            self.assertTrue(any("Результат обработки: JPEG" in line for line in processing_log))
+            self.assertIn("Итог: файл успешно отправлен через sendPhoto.", processing_log)
 
     def test_optimizer_document_failure_is_requeueable_and_caption_fails_before_processing(self):
         channel = SimpleNamespace(
@@ -619,6 +688,54 @@ class PhotoOptimizationTests(unittest.TestCase):
             prepare_mock.assert_not_called()
             client_mock.assert_not_called()
 
+    def test_network_error_is_sanitized_and_logged(self):
+        class FailingClient:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, traceback):
+                return False
+
+            async def post(self, url, data, files):
+                raise httpx.ReadTimeout("timeout", request=httpx.Request("POST", url))
+
+        channel = SimpleNamespace(
+            bot_token="secret-token",
+            chat_id="chat",
+            message_thread_id=None,
+            default_caption=None,
+            disable_notification=False,
+            protect_content=False,
+            parse_mode=None,
+        )
+        rule = SimpleNamespace(
+            chat_id_override=None,
+            caption_template=None,
+            convert_heic_to_jpeg=False,
+            send_as_document=False,
+            optimize_large_photos=False,
+            include_filename_in_caption=False,
+        )
+        processing_log: list[str] = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "photo.jpg"
+            Image.new("RGB", (20, 20), (10, 20, 30)).save(source_path)
+            file_record = SimpleNamespace(
+                absolute_path=str(source_path),
+                relative_path="photo.jpg",
+                media_kind="photo",
+                source=SimpleNamespace(name="Source"),
+            )
+            with patch("app.services.telegram.httpx.AsyncClient", FailingClient):
+                with self.assertRaisesRegex(TelegramPublishError, "ошибки чтения или сети"):
+                    asyncio.run(publish_file(channel, rule, file_record, processing_log))
+
+        self.assertIn("Итог: отправка прервана из-за ошибки чтения или сети.", processing_log)
+        self.assertNotIn("secret-token", "\n".join(processing_log))
+
 
 class CaptionMigrationTests(unittest.TestCase):
     def test_new_and_legacy_databases_have_caption_filename_columns(self):
@@ -629,6 +746,8 @@ class CaptionMigrationTests(unittest.TestCase):
             self.assertIn("include_filename_in_caption", new_columns)
             self.assertIn("include_file_path_in_caption", new_columns)
             self.assertIn("optimize_large_photos", new_columns)
+            history_columns = {column["name"] for column in inspect(new_engine).get_columns("post_history")}
+            self.assertIn("processing_log", history_columns)
             new_engine.dispose()
 
             legacy_engine = create_engine(f"sqlite:///{Path(temp_dir) / 'legacy.db'}")
@@ -643,6 +762,13 @@ class CaptionMigrationTests(unittest.TestCase):
                     )
                 )
                 connection.execute(text("INSERT INTO posting_rules (id, channel_id, source_id) VALUES (1, 1, 1)"))
+                connection.execute(
+                    text(
+                        "CREATE TABLE post_history ("
+                        "id INTEGER PRIMARY KEY, rule_id INTEGER, source_id INTEGER, status VARCHAR(32)"
+                        ")"
+                    )
+                )
 
             with patch.object(db_module, "engine", legacy_engine):
                 db_module.migrate_schema()
@@ -652,6 +778,10 @@ class CaptionMigrationTests(unittest.TestCase):
             self.assertIn("include_filename_in_caption", legacy_columns)
             self.assertIn("include_file_path_in_caption", legacy_columns)
             self.assertIn("optimize_large_photos", legacy_columns)
+            legacy_history_columns = {
+                column["name"] for column in inspect(legacy_engine).get_columns("post_history")
+            }
+            self.assertIn("processing_log", legacy_history_columns)
             with legacy_engine.connect() as connection:
                 values = connection.execute(
                     text(
@@ -661,6 +791,16 @@ class CaptionMigrationTests(unittest.TestCase):
                 ).one()
             self.assertEqual(tuple(values), (0, 0, 0))
             legacy_engine.dispose()
+
+    def test_history_partial_contains_processing_log_modal(self):
+        template = (
+            Path(__file__).resolve().parents[1] / "app" / "templates" / "_history_rows.html"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Лог обработки", template)
+        self.assertIn("processing-log-{{ item.id }}", template)
+        self.assertIn("item.can_requeue_file", template)
+        self.assertIn('role="dialog"', template)
+        self.assertIn('aria-modal="true"', template)
 
 
 if __name__ == "__main__":

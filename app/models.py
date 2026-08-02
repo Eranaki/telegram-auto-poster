@@ -204,6 +204,7 @@ class PostHistory(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     manual_trigger: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     message: Mapped[str | None] = mapped_column(Text)
+    processing_log: Mapped[str | None] = mapped_column(Text)
     telegram_message_id: Mapped[str | None] = mapped_column(String(120))
     attempted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, nullable=False)
 

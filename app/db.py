@@ -81,6 +81,8 @@ def migrate_schema() -> None:
                 connection.execute(
                     text("ALTER TABLE post_history ADD COLUMN manual_trigger INTEGER DEFAULT 0 NOT NULL")
                 )
+            if "processing_log" not in history_columns:
+                connection.execute(text("ALTER TABLE post_history ADD COLUMN processing_log TEXT"))
 
         channel_rows = []
         if "telegram_channels" in existing_tables:
