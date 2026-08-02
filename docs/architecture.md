@@ -130,6 +130,8 @@ sequenceDiagram
 
 Optional photo optimization выполняется только для rule с `optimize_large_photos=true`: metadata/pixel cap проверяются до decode, затем Pillow создает временный JPEG с безопасными dimensions/size, а оригинал остается на read-only content mount. Все temporary variants очищаются при encoder/publisher errors и после завершения внешнего запроса. CPU/decode работа пока выполняется синхронно и остается частью общего KI-008.
 
+Publisher принимает request-local список processing events; scheduler и direct-post сохраняют его в `post_history.processing_log` вместе с success/failed attempt. UI показывает поле только по запросу через modal, поэтому основной history row остается компактным. Legacy failed message с кодом `PHOTO_INVALID_DIMENSIONS` также считается requeueable, даже если был создан до typed fallback.
+
 ## Границы Доверия
 
 - Браузер администратора имеет полный контроль над каналами, источниками и отправкой.

@@ -1212,14 +1212,45 @@ select:disabled {
     overflow-wrap: anywhere;
 }
 
+.history-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+}
+
 .history-row-action {
     align-self: flex-start;
-    margin-top: 2px;
+    margin: 0;
 }
 
 .history-row-action button {
     padding: 7px 10px;
     font-size: 0.82rem;
+}
+
+button.history-row-action {
+    padding: 7px 10px;
+    font-size: 0.82rem;
+}
+
+.processing-log-dialog {
+    width: min(560px, calc(100vw - 32px));
+}
+
+.processing-log-content {
+    margin: 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--control-bg);
+    color: var(--text);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+    font-size: 0.88rem;
+    line-height: 1.55;
 }
 
 .history-topline {

@@ -25,12 +25,44 @@
             </div>
             <strong>{{ item.file_display_name }}</strong>
             <small>{{ item.message or "Без подробностей" }}</small>
-            {% if item.can_requeue_missing_file %}
-            <form method="post" action="/history/{{ item.id }}/requeue" class="history-row-action">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                <input type="hidden" name="return_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}" />
-                <button type="submit" class="secondary">Вернуть файл в очередь</button>
-            </form>
+            {% if item.can_requeue_file or item.has_processing_log %}
+            <div class="history-row-actions">
+                {% if item.can_requeue_file %}
+                <form method="post" action="/history/{{ item.id }}/requeue" class="history-row-action">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <input type="hidden" name="return_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}" />
+                    <button type="submit" class="secondary">Вернуть файл в очередь</button>
+                </form>
+                {% endif %}
+                {% if item.has_processing_log %}
+                <button type="button" class="secondary history-row-action" data-modal-open="processing-log-{{ item.id }}">
+                    Лог обработки
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if item.has_processing_log %}
+            <div class="app-modal" data-modal="processing-log-{{ item.id }}" hidden>
+                <div class="app-modal-backdrop" data-modal-close></div>
+                <div
+                    class="app-modal-dialog processing-log-dialog"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="processing-log-title-{{ item.id }}"
+                    tabindex="-1"
+                >
+                    <div class="app-modal-header">
+                        <div>
+                            <p class="eyebrow">Обработка изображения</p>
+                            <h2 id="processing-log-title-{{ item.id }}">{{ item.file_display_name }}</h2>
+                        </div>
+                        <button type="button" class="preview-modal-close" data-modal-close>Закрыть</button>
+                    </div>
+                    <div class="app-modal-body">
+                        <pre class="processing-log-content">{{ item.processing_log }}</pre>
+                    </div>
+                </div>
+            </div>
             {% endif %}
         </div>
         <div class="history-time">

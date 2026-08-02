@@ -25,10 +25,9 @@ from app.services.scanner import (
     reactivate_file_record,
 )
 from app.services.telegram import (
-    MISSING_FILE_ERROR_PREFIX,
     MISSING_FILE_REQUEUED_MARKER,
-    PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX,
     RequeueableFilePublishError,
+    is_requeueable_history_message,
 )
 from app.web_contexts import (
     SELECTION_MODE_LABELS,
@@ -934,9 +933,7 @@ async def requeue_missing_history_file(
         history.status != "failed"
         or history.file is None
         or history.rule is None
-        or not (history.message or "").startswith(
-            (MISSING_FILE_ERROR_PREFIX, PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX)
-        )
+        or not is_requeueable_history_message(history.message, history.file.media_kind)
         or MISSING_FILE_REQUEUED_MARKER in (history.message or "")
     ):
         raise HTTPException(status_code=409, detail="Эту запись нельзя вернуть в очередь")
@@ -1829,8 +1826,9 @@ async def post_queue_file_now(
     from app.services.telegram import TelegramPublishError, publish_file
 
     now = datetime.now()
+    processing_log: list[str] = []
     try:
-        message_id = await publish_file(channel, rule, file_record)
+        message_id = await publish_file(channel, rule, file_record, processing_log)
     except TelegramPublishError as exc:
         if isinstance(exc, RequeueableFilePublishError):
             file_record.is_active = False
@@ -1841,6 +1839,7 @@ async def post_queue_file_now(
             status="failed",
             manual_trigger=True,
             message=str(exc),
+            processing_log="\n".join(processing_log) or None,
         )
         session.add(history)
         session.commit()
@@ -1855,6 +1854,7 @@ async def post_queue_file_now(
         status="sent",
         manual_trigger=True,
         message=f"Файл {file_record.relative_path} опубликован вручную",
+        processing_log="\n".join(processing_log) or None,
         telegram_message_id=message_id,
     )
     session.add(history)

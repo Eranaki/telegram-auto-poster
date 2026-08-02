@@ -31,6 +31,8 @@
 
 Rule-флаг `optimize_large_photos` включает preprocessing через Pillow до `sendPhoto`. Metadata проверяются до полного decode; изображения свыше 40 млн пикселей отправляются документом для ограничения memory pressure. EXIF orientation применяется к временной копии; сумма сторон уменьшается ниже 10 000 пикселей, а файл рекомпрессируется ниже 9,5 МБ с последовательным снижением JPEG quality и разрешения. Оригинал остается неизменным, временный JPEG удаляется в `finally`. Пропорция более 20:1, decompression-bomb warning, ошибка декодирования или невозможность уложиться в лимит переключают отправку исходного файла на `sendDocument` без crop/stretch. Обработка Pillow остается синхронной в текущем scheduler process.
 
+Если optimization, HEIF conversion или `PHOTO_INVALID_DIMENSIONS` fallback выполнялись, publisher собирает безопасный пошаговый log. В `post_history.processing_log` фиксируются причина, исходные и итоговые dimensions/size, EXIF/alpha/resize/recompress actions, выбранный method и итог. Log ограничен 32 строками по 500 символов; token, URL Telegram и absolute path не записываются. Timeout/network/file-read errors нормализуются без текста exception, чтобы URL с token не попал в history. В UI log открывается отдельной маленькой кнопкой; для untouched compliant photos поле остается `NULL`.
+
 ## Подписи
 
 Template берется из `rule.caption_template`, затем `channel.default_caption`. Поддерживаются поля:

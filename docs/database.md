@@ -61,7 +61,7 @@ Relationships включают files, link tables и legacy `rules` ownership ч
 
 ### `post_history`
 
-Attempt log: rule/source/file FKs, `sent|failed|skipped`, `manual_trigger`, message, Telegram message ID и attempted time.
+Attempt log: rule/source/file FKs, `sent|failed|skipped`, `manual_trigger`, message, optional `processing_log`, Telegram message ID и attempted time. Processing log хранит безопасные этапы image optimization/fallback без token и absolute path.
 
 - index: `(rule_id, status)`;
 - file delete задекларирован как `SET NULL`, но SQLite FK enforcement не включен;
@@ -95,7 +95,7 @@ Singleton ID 1: list/grid mode, card size, page size, thumbnail size и timestam
 
 - добавление channel/burst/HEIF/source-selection, filename-caption и photo-optimization fields в `posting_rules`;
 - добавление nullable `message_thread_id` в `telegram_channels` для тем групп-форумов;
-- добавление `manual_trigger` в `post_history`;
+- добавление `manual_trigger` и nullable `processing_log` в `post_history`;
 - добавление manual/progress fields в `content_sources`;
 - перенос первой `telegram_config` в канал `Основной` при отсутствии каналов;
 - заполнение nullable migrated `channel_id` первым каналом;

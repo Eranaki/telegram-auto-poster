@@ -243,8 +243,9 @@ class AppScheduler:
                 session.commit()
                 return
 
+            processing_log: list[str] = []
             try:
-                message_id = await publish_file(channel, rule, file_record)
+                message_id = await publish_file(channel, rule, file_record, processing_log)
             except TelegramPublishError as exc:
                 if isinstance(exc, RequeueableFilePublishError):
                     file_record.is_active = False
@@ -254,6 +255,7 @@ class AppScheduler:
                     file_id=file_record.id,
                     status="failed",
                     message=str(exc),
+                    processing_log="\n".join(processing_log) or None,
                 )
                 session.add(history)
                 rule.last_run_at = now
@@ -270,6 +272,7 @@ class AppScheduler:
                 file_id=file_record.id,
                 status="sent",
                 message=f"Опубликован файл {file_record.relative_path}",
+                processing_log="\n".join(processing_log) or None,
                 telegram_message_id=message_id,
             )
             session.add(history)
