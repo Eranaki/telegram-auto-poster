@@ -498,6 +498,7 @@ def build_rule_form_defaults(channel_id: int) -> dict[str, object]:
         "repeat_after_exhaustion": True,
         "send_as_document": False,
         "convert_heic_to_jpeg": False,
+        "optimize_large_photos": False,
         "enabled": True,
     }
 

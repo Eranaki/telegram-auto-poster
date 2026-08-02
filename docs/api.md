@@ -97,8 +97,8 @@ Endpoint не обходит вложенные уровни. Реальный r
 | GET | `/rules/{rule_id}/queue` | Preview до 30 candidates |
 | GET | `/history` | Global filtered/paginated history; blank optional IDs означают отсутствие фильтра |
 | POST | `/history/{history_id}/requeue` | Однократно проверяет и реактивирует missing file или failed photo-document fallback без публикации и изменения schedule |
-| POST | `/rules` | Создает rule и source links; принимает filename/path caption flags; enabled rule сразу due (`next_run_at=NULL`) |
-| POST | `/channels/{channel_id}/rules/import` | Копирует rule, links и caption flags в другой канал |
+| POST | `/rules` | Создает rule и source links; принимает filename/path caption и photo-optimization flags; enabled rule сразу due (`next_run_at=NULL`) |
+| POST | `/channels/{channel_id}/rules/import` | Копирует rule, links, caption и photo-optimization flags в другой канал |
 | POST | `/channels/{channel_id}/rules/{rule_id}/edit` | Обновляет rule, links и `next_run_at` |
 | POST | `/rules/{rule_id}/toggle` | Переключает enabled без пересчета schedule |
 | POST | `/rules/{rule_id}/run` | Немедленно запускает scan/select/Telegram pipeline |
@@ -106,6 +106,8 @@ Endpoint не обходит вложенные уровни. Реальный r
 | POST | `/rules/{rule_id}/delete` | Удаляет rule, links и history |
 
 `include_filename_in_caption` добавляет basename в конец подписи. `include_file_path_in_caption` действует только вместе с ним и заменяет basename на путь относительно источника.
+
+`optimize_large_photos` создает временную уменьшенную JPEG-копию перед `sendPhoto`; экстремальная пропорция или невозможность обработки переключает исходник на `sendDocument`.
 
 ## Статика И Framework Routes
 

@@ -29,6 +29,8 @@
 
 Для обычного `sendPhoto` действует один автоматический fallback: точная ошибка `PHOTO_INVALID_DIMENSIONS` немедленно повторяет отправку исходного файла через `sendDocument`. Если document request тоже отклонен, publisher прекращает попытки, сохраняет typed error в history и деактивирует файл до ручного возврата. Другие ошибки `sendPhoto` fallback не запускают.
 
+Rule-флаг `optimize_large_photos` включает preprocessing через Pillow до `sendPhoto`. Metadata проверяются до полного decode; изображения свыше 40 млн пикселей отправляются документом для ограничения memory pressure. EXIF orientation применяется к временной копии; сумма сторон уменьшается ниже 10 000 пикселей, а файл рекомпрессируется ниже 9,5 МБ с последовательным снижением JPEG quality и разрешения. Оригинал остается неизменным, временный JPEG удаляется в `finally`. Пропорция более 20:1, decompression-bomb warning, ошибка декодирования или невозможность уложиться в лимит переключают отправку исходного файла на `sendDocument` без crop/stretch. Обработка Pillow остается синхронной в текущем scheduler process.
+
 ## Подписи
 
 Template берется из `rule.caption_template`, затем `channel.default_caption`. Поддерживаются поля:
@@ -54,7 +56,7 @@ Template берется из `rule.caption_template`, затем `channel.defaul
 5. Due non-manual source получает синхронный full scan перед публикацией.
 6. Picker выбирает active file из общего пула.
 7. `publish_file` проверяет token, chat target и существование файла. Missing file получает отдельный тип ошибки и деактивируется до восстановления через историю или full scan.
-8. Файл при необходимости преобразуется и отправляется multipart POST через новый `httpx.AsyncClient(timeout=180)`; только `PHOTO_INVALID_DIMENSIONS` допускает второй и последний request как document.
+8. При включенной оптимизации большая фотография получает временную JPEG-копию либо переключается на document; затем файл отправляется multipart POST через новый `httpx.AsyncClient(timeout=180)`. Только `PHOTO_INVALID_DIMENSIONS` допускает второй и последний request как document.
 9. Успех определяется по HTTP status и JSON `ok`; возвращается `result.message_id`.
 10. Scheduler обновляет file counters, history, rule result и next/burst run в одной DB commit после внешнего call.
 
