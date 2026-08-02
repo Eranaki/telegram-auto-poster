@@ -37,7 +37,9 @@ Template берется из `rule.caption_template`, затем `channel.defaul
 - `{source}`;
 - `{relative_path}`.
 
-Используется обычный `str.format()`, после чего строка срезается до `MAX_CAPTION_LENGTH`. Неизвестный/malformed placeholder вызывает исключение, которое caller сейчас не нормализует. Truncation не учитывает parse-mode markup.
+Опция `Писать имя файла` добавляет basename после шаблона с новой строки. Дополнительная опция пути использует `FileRecord.relative_path`, как в истории, вместо basename. Сгенерированное имя экранируется для HTML, Markdown или MarkdownV2; пользовательская разметка самого шаблона не изменяется.
+
+Используется обычный `str.format()`. Значения placeholders экранируются для parse mode, а неизвестный/malformed placeholder нормализуется в `TelegramPublishError`. Итог длиннее `MAX_CAPTION_LENGTH` отклоняется до HTTP-запроса вместо обрезания имени или markup.
 
 `parse_mode` передается как сохранено в channel и server-side whitelist не имеет. Caption для document тоже передается стандартным Telegram field `caption`.
 
@@ -49,7 +51,7 @@ Template берется из `rule.caption_template`, затем `channel.defaul
 4. Scheduled run проверяет allowed hours; manual run пропускает проверку.
 5. Due non-manual source получает синхронный full scan перед публикацией.
 6. Picker выбирает active file из общего пула.
-7. `publish_file` проверяет token, chat target и существование файла.
+7. `publish_file` проверяет token, chat target и существование файла. Missing file получает отдельный тип ошибки и деактивируется до восстановления через историю или full scan.
 8. Файл при необходимости преобразуется и отправляется одним multipart POST через новый `httpx.AsyncClient(timeout=180)`.
 9. Успех определяется по HTTP status и JSON `ok`; возвращается `result.message_id`.
 10. Scheduler обновляет file counters, history, rule result и next/burst run в одной DB commit после внешнего call.
@@ -82,7 +84,6 @@ Manual rule run также запускает burst state и пересчиты�
 
 - `httpx` timeout/network exceptions;
 - file open race/permission errors;
-- invalid caption formatting;
 - другие unexpected runtime exceptions.
 
 В таком случае scheduler не пишет failed history и не пересчитывает due rule. Повтор на каждом tick возможен. Retry/backoff для 429/5xx отсутствует; due rules обрабатываются последовательно, поэтому один request может блокировать остальные до 180 секунд.

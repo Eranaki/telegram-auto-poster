@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html
+import re
 import tempfile
 from pathlib import Path
 
@@ -17,9 +19,15 @@ METHODS = {
     "video": ("sendVideo", "video"),
     "document": ("sendDocument", "document"),
 }
+MISSING_FILE_ERROR_PREFIX = "Файл не найден:"
+MISSING_FILE_REQUEUED_MARKER = "Файл возвращен в очередь"
 
 
 class TelegramPublishError(RuntimeError):
+    pass
+
+
+class FileNotFoundPublishError(TelegramPublishError):
     pass
 
 
@@ -37,20 +45,50 @@ HEIF_BRANDS = (
 register_heif_opener()
 
 
+def escape_caption_value(value: str, parse_mode: str | None) -> str:
+    normalized_mode = (parse_mode or "").lower()
+    if normalized_mode == "html":
+        return html.escape(value, quote=False)
+    if normalized_mode == "markdownv2":
+        return re.sub(r"([_\-*\[\]()~`>#+=|{}.!\\])", r"\\\1", value)
+    if normalized_mode == "markdown":
+        return re.sub(r"([_*\[\]()`\\])", r"\\\1", value)
+    return value
+
+
 def render_caption(channel: TelegramChannel, rule: PostingRule, file_record: FileRecord) -> str | None:
     template = rule.caption_template or channel.default_caption
-    if not template:
-        return None
-
     file_path = Path(file_record.absolute_path)
-    caption = template.format(
-        filename=file_path.name,
-        stem=file_path.stem,
-        suffix=file_path.suffix,
-        source=file_record.source.name,
-        relative_path=file_record.relative_path,
-    )
-    return caption[:MAX_CAPTION_LENGTH]
+    caption = ""
+    if template:
+        escaped_values = {
+            "filename": escape_caption_value(file_path.name, channel.parse_mode),
+            "stem": escape_caption_value(file_path.stem, channel.parse_mode),
+            "suffix": escape_caption_value(file_path.suffix, channel.parse_mode),
+            "source": escape_caption_value(file_record.source.name, channel.parse_mode),
+            "relative_path": escape_caption_value(file_record.relative_path, channel.parse_mode),
+        }
+        try:
+            caption = template.format(**escaped_values)
+        except (AttributeError, KeyError, ValueError, IndexError) as exc:
+            raise TelegramPublishError("Не удалось сформировать подпись: проверьте шаблон") from exc
+
+    if getattr(rule, "include_filename_in_caption", False):
+        filename = (
+            file_record.relative_path
+            if getattr(rule, "include_file_path_in_caption", False)
+            else Path(file_record.relative_path).name
+        )
+        escaped_filename = escape_caption_value(filename, channel.parse_mode)
+        caption = f"{caption}\n{escaped_filename}" if caption else escaped_filename
+
+    if not caption:
+        return None
+    if len(caption) > MAX_CAPTION_LENGTH:
+        raise TelegramPublishError(
+            f"Подпись слишком длинная: {len(caption)} символов при лимите {MAX_CAPTION_LENGTH}"
+        )
+    return caption
 
 
 def is_heif_container(file_path: Path) -> bool:
@@ -94,7 +132,7 @@ async def publish_file(channel: TelegramChannel, rule: PostingRule, file_record:
 
     file_path = Path(file_record.absolute_path)
     if not file_path.exists():
-        raise TelegramPublishError(f"Файл не найден: {file_record.absolute_path}")
+        raise FileNotFoundPublishError(f"{MISSING_FILE_ERROR_PREFIX} {file_record.relative_path}")
 
     actual_file_path = file_path
     cleanup_path: Path | None = None

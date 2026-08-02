@@ -99,6 +99,14 @@
                     <textarea name="caption_template" rows="4">{{ rule.caption_template or '' }}</textarea>
                 </label>
                 <label class="checkbox">
+                    <input type="checkbox" name="include_filename_in_caption" data-caption-filename {% if rule.include_filename_in_caption %}checked{% endif %} />
+                    <span>Писать имя файла</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="include_file_path_in_caption" data-caption-file-path {% if rule.include_file_path_in_caption %}checked{% endif %} />
+                    <span>Добавлять путь к файлу (как в истории)</span>
+                </label>
+                <label class="checkbox">
                     <input type="checkbox" name="repeat_after_exhaustion" {% if rule.repeat_after_exhaustion %}checked{% endif %} />
                     <span>Повторять после исчерпания уникальных файлов</span>
                 </label>
@@ -148,6 +156,7 @@
                     </li>
                     <li><strong>Переопределить канал</strong> — ручная отправка этого правила в другой канал.</li>
                     <li><strong>Шаблон подписи</strong> — подпись только для этого правила.</li>
+                    <li><strong>Писать имя файла</strong> — добавляет имя в конец подписи. Опция пути вместо basename использует путь относительно источника, как в истории.</li>
                     <li><strong>Повторять после исчерпания</strong> — после полного прохода правило снова начнет использовать те же файлы.</li>
                     <li><strong>Всегда отправлять как документ</strong> — полезно для нестандартных форматов и проблемных медиа.</li>
                     <li><strong>Автоконвертация HEIC</strong> — предварительно переводит HEIC/HEIF в JPEG перед отправкой как фото.</li>

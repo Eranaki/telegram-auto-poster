@@ -270,6 +270,25 @@
                 checkbox.addEventListener("change", syncManualScanState);
             });
 
+            document.querySelectorAll("form").forEach((form) => {
+                const filenameCheckbox = form.querySelector("[data-caption-filename]");
+                const pathCheckbox = form.querySelector("[data-caption-file-path]");
+                if (!filenameCheckbox || !pathCheckbox) {
+                    return;
+                }
+
+                const syncCaptionFilenameState = () => {
+                    pathCheckbox.disabled = !filenameCheckbox.checked;
+                    pathCheckbox.closest("label")?.classList.toggle("field-disabled", !filenameCheckbox.checked);
+                    if (!filenameCheckbox.checked) {
+                        pathCheckbox.checked = false;
+                    }
+                };
+
+                syncCaptionFilenameState();
+                filenameCheckbox.addEventListener("change", syncCaptionFilenameState);
+            });
+
             const setModalBodyState = (open) => {
                 document.body.classList.toggle("modal-open", open);
             };

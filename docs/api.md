@@ -94,17 +94,18 @@ Endpoint не обходит вложенные уровни. Реальный r
 | Метод | Путь | Назначение / side effects |
 | --- | --- | --- |
 | GET | `/channels/{channel_id}/rules/{rule_id}/edit` | Rule edit form, проверяет ownership |
-| GET | `/rules/{rule_id}/queue` | Preview до 30 candidates; сейчас `NameError` |
-| GET | `/history` | Global filtered/paginated history |
-| POST | `/rules` | Создает rule и source links; enabled rule сразу due (`next_run_at=NULL`) |
-| POST | `/channels/{channel_id}/rules/import` | Копирует rule; сейчас `NameError` после flush |
+| GET | `/rules/{rule_id}/queue` | Preview до 30 candidates |
+| GET | `/history` | Global filtered/paginated history; blank optional IDs означают отсутствие фильтра |
+| POST | `/history/{history_id}/requeue` | Однократно проверяет и реактивирует восстановленный missing file без публикации и изменения schedule |
+| POST | `/rules` | Создает rule и source links; принимает filename/path caption flags; enabled rule сразу due (`next_run_at=NULL`) |
+| POST | `/channels/{channel_id}/rules/import` | Копирует rule, links и caption flags в другой канал |
 | POST | `/channels/{channel_id}/rules/{rule_id}/edit` | Обновляет rule, links и `next_run_at` |
 | POST | `/rules/{rule_id}/toggle` | Переключает enabled без пересчета schedule |
 | POST | `/rules/{rule_id}/run` | Немедленно запускает scan/select/Telegram pipeline |
-| POST | `/rules/{rule_id}/files/{file_id}/post-now` | Intended direct post; сейчас `NameError` до Telegram call |
+| POST | `/rules/{rule_id}/files/{file_id}/post-now` | Direct post выбранного файла; missing file деактивируется и остается в history |
 | POST | `/rules/{rule_id}/delete` | Удаляет rule, links и history |
 
-Подтвержденный defect: `app/web.py` не импортирует `get_rule_source_ids` и `already_sent_exists`, хотя использует их в queue/import/post-now. Эти endpoints нельзя считать рабочими.
+`include_filename_in_caption` добавляет basename в конец подписи. `include_file_path_in_caption` действует только вместе с ним и заменяет basename на путь относительно источника.
 
 ## Статика И Framework Routes
 

@@ -22,6 +22,7 @@ ANIMATION_EXTENSIONS = {".gif"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm"}
 SCAN_MODE_FULL = "full"
 SCAN_MODE_ADD_MISSING = "add_missing"
+CONTENT_ROOT = Path("/content")
 
 
 def normalize_media_type_selection(values: list[str]) -> list[str]:
@@ -57,6 +58,41 @@ def file_matches_source_filters(path: Path, source: ContentSource) -> bool:
     if not selected_types:
         selected_types = list(MEDIA_TYPE_LABELS)
     return detect_media_kind(path) in selected_types
+
+
+def reactivate_file_record(file_record: FileRecord) -> None:
+    source = file_record.source
+    try:
+        content_root = CONTENT_ROOT.resolve(strict=True)
+        root = Path(source.path).resolve(strict=True)
+    except (FileNotFoundError, OSError) as exc:
+        raise ValueError("Источник пока недоступен") from exc
+    if root != content_root and not root.is_relative_to(content_root):
+        raise ValueError("Источник должен находиться внутри /content")
+
+    relative_path = Path(file_record.relative_path)
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        raise ValueError("Сохраненный путь файла недействителен")
+    if not source.recursive and relative_path.parent != Path("."):
+        raise ValueError("Вложенный файл больше не входит в нерекурсивный источник")
+
+    try:
+        file_path = (root / relative_path).resolve(strict=True)
+    except (FileNotFoundError, OSError) as exc:
+        raise ValueError("Файл пока недоступен") from exc
+    if not file_path.is_relative_to(root) or not file_path.is_file():
+        raise ValueError("Файл должен находиться внутри исходной папки")
+    if not file_matches_source_filters(file_path, source):
+        raise ValueError("Файл больше не соответствует типам этого источника")
+
+    stat = file_path.stat()
+    file_record.absolute_path = str(file_path)
+    file_record.media_kind = detect_media_kind(file_path)
+    file_record.size = stat.st_size
+    file_record.mtime_ns = stat.st_mtime_ns
+    file_record.fingerprint = build_fingerprint(file_record.relative_path, stat.st_size, stat.st_mtime_ns)
+    file_record.is_active = True
+    file_record.last_seen_at = datetime.now()
 
 
 def collect_candidate_paths(source: ContentSource) -> list[Path]:
