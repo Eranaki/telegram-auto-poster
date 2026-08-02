@@ -20,6 +20,8 @@ METHODS = {
     "document": ("sendDocument", "document"),
 }
 MISSING_FILE_ERROR_PREFIX = "Файл не найден:"
+PHOTO_INVALID_DIMENSIONS = "PHOTO_INVALID_DIMENSIONS"
+PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX = "Не удалось отправить проблемное фото как документ:"
 MISSING_FILE_REQUEUED_MARKER = "Файл возвращен в очередь"
 
 
@@ -27,7 +29,15 @@ class TelegramPublishError(RuntimeError):
     pass
 
 
-class FileNotFoundPublishError(TelegramPublishError):
+class RequeueableFilePublishError(TelegramPublishError):
+    pass
+
+
+class FileNotFoundPublishError(RequeueableFilePublishError):
+    pass
+
+
+class PhotoDocumentFallbackError(RequeueableFilePublishError):
     pass
 
 
@@ -148,7 +158,6 @@ async def publish_file(channel: TelegramChannel, rule: PostingRule, file_record:
     force_document = is_heif and not rule.convert_heic_to_jpeg
     media_kind = "document" if rule.send_as_document or force_document else file_record.media_kind
     method, field_name = METHODS.get(media_kind, METHODS["document"])
-    url = TELEGRAM_API_URL.format(token=channel.bot_token, method=method)
     payload = {
         "chat_id": chat_id,
         "disable_notification": str(channel.disable_notification).lower(),
@@ -162,23 +171,39 @@ async def publish_file(channel: TelegramChannel, rule: PostingRule, file_record:
     if channel.parse_mode:
         payload["parse_mode"] = channel.parse_mode
 
+    fallback_from_invalid_photo = False
     try:
-        with actual_file_path.open("rb") as handle:
-            files = {field_name: (actual_file_path.name, handle)}
-            async with httpx.AsyncClient(timeout=180) as client:
-                response = await client.post(url, data=payload, files=files)
+        async with httpx.AsyncClient(timeout=180) as client:
+            while True:
+                url = TELEGRAM_API_URL.format(token=channel.bot_token, method=method)
+                upload_path = file_path if fallback_from_invalid_photo else actual_file_path
+                with upload_path.open("rb") as handle:
+                    files = {field_name: (upload_path.name, handle)}
+                    response = await client.post(url, data=payload, files=files)
+
+                try:
+                    result = response.json()
+                except ValueError as exc:  # pragma: no cover
+                    if fallback_from_invalid_photo:
+                        raise PhotoDocumentFallbackError(
+                            f"{PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX} неожиданный ответ Telegram API"
+                        ) from exc
+                    raise TelegramPublishError(f"Неожиданный ответ Telegram API: {response.text}") from exc
+
+                if response.status_code < 400 and result.get("ok"):
+                    message = result.get("result") or {}
+                    return str(message.get("message_id", ""))
+
+                description = result.get("description") or response.text
+                if method == "sendPhoto" and PHOTO_INVALID_DIMENSIONS in description:
+                    method, field_name = METHODS["document"]
+                    fallback_from_invalid_photo = True
+                    continue
+                if fallback_from_invalid_photo:
+                    raise PhotoDocumentFallbackError(
+                        f"{PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX} {description}"
+                    )
+                raise TelegramPublishError(f"Ошибка Telegram API: {description}")
     finally:
         if cleanup_path is not None:
             cleanup_path.unlink(missing_ok=True)
-
-    try:
-        result = response.json()
-    except ValueError as exc:  # pragma: no cover
-        raise TelegramPublishError(f"Неожиданный ответ Telegram API: {response.text}") from exc
-
-    if response.status_code >= 400 or not result.get("ok"):
-        description = result.get("description") or response.text
-        raise TelegramPublishError(f"Ошибка Telegram API: {description}")
-
-    message = result.get("result") or {}
-    return str(message.get("message_id", ""))

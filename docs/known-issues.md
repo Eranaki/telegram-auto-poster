@@ -148,7 +148,7 @@
 
 ### KI-034: missing file нельзя было точечно вернуть в picker
 
-**Исправлено.** Missing-file publication деактивирует индексную запись. Failed history показывает однократный CSRF-protected requeue action, который после восстановления volume проверяет текущий source/rule, `/content` containment, recursion и file type, обновляет metadata и активирует файл без публикации. Race с automatic scan остается частью KI-010.
+**Исправлено.** Missing-file publication и повторный отказ document fallback после `PHOTO_INVALID_DIMENSIONS` деактивируют индексную запись. Failed history показывает однократный CSRF-protected requeue action, который проверяет текущий source/rule, `/content` containment, recursion и file type, обновляет metadata и активирует файл без публикации. Race с automatic scan остается частью KI-010.
 
 ### KI-001: три rule endpoint падали с `NameError`
 
