@@ -26,8 +26,8 @@
 | Метод | Путь | Назначение / side effects |
 | --- | --- | --- |
 | GET | `/sources` | Список глобальных sources |
-| GET | `/content-paths/options` | JSON `{paths: [...]}` из process cache/runtime `/content` |
-| POST | `/content-paths/refresh` | Сбрасывает cache и пересканирует path options |
+| GET | `/content-paths/options` | Один уровень каталогов `/content`; query: `path`, `offset`, `limit` (до 200), `generation` для следующих страниц |
+| POST | `/content-paths/refresh` | Сбрасывает directory cache без рекурсивного обхода |
 | POST | `/settings/file-browser` | Сохраняет singleton UI preferences |
 | GET | `/sources/{source_id}/files` | Фильтры/pagination; query `view|size|per_page` записывает preferences |
 | GET | `/files/{file_id}/thumbnail` | Отдает/generates PNG либо SVG placeholder |
@@ -39,6 +39,23 @@
 | POST | `/sources/{source_id}/scan-full` | Ставит full scan и запускает daemon thread |
 | POST | `/sources/{source_id}/scan-add` | Запускает add-missing scan |
 | POST | `/sources/{source_id}/delete` | Удаляет source; потенциально rules/history через cascade |
+
+`content-paths/options` response:
+
+```json
+{
+  "current_path": "/content/photos",
+  "parent_path": "/content",
+  "children": [{"name": "2026", "path": "/content/photos/2026"}],
+  "offset": 0,
+  "next_offset": 1,
+  "has_more": false,
+  "selectable": true,
+  "generation": "1770000000000000000"
+}
+```
+
+Endpoint не обходит вложенные уровни. Реальный resolved path должен оставаться внутри `/content`; symlink наружу отклоняется.
 
 `scan-status` response:
 

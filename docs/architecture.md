@@ -55,6 +55,8 @@ SQLAlchemy использует `DATABASE_URL`, по умолчанию SQLite. 
 
 Scanner обходит source path рекурсивно или на одном уровне, определяет тип по extension и синхронизирует `files`. Fingerprint состоит из relative path, size и mtime, а не content hash. Preview service читает оригинал и пишет PNG в `/data/previews`; для видео синхронно вызывает `ffprobe` и `ffmpeg`.
 
+Выбор source path отделен от scanner: UI запрашивает до 200 непосредственных подпапок открытого каталога, а backend кеширует каждый уровень по path и directory mtime. Глубокая иерархия не обходится до запуска scan уже выбранного source.
+
 ### Планировщик
 
 `AppScheduler` регистрирует:
