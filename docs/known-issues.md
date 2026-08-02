@@ -120,7 +120,7 @@
 
 ### KI-028: tests и quality gates отсутствуют
 
-**Частично исправлено.** Добавлены стандартные `unittest` для тем Telegram, lazy content browser, rule import, history filters/requeue и filename captions, включая временную SQLite, mocked Telegram HTTP и FastAPI route checks. Отдельные CI jobs, lint, formatting, type checking и coverage по-прежнему отсутствуют.
+**Частично исправлено.** Добавлены стандартные `unittest` для тем Telegram, lazy content browser, rule import, history filters/requeue, filename captions и photo optimization, включая временную SQLite, mocked Telegram HTTP и FastAPI route checks. Отдельные CI jobs, lint, formatting, type checking и coverage по-прежнему отсутствуют.
 
 ### KI-029: local DB paths расходятся
 
