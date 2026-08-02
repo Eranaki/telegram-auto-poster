@@ -22,10 +22,17 @@ from app.services.scanner import (
     SCAN_MODE_ADD_MISSING,
     SCAN_MODE_FULL,
     normalize_media_type_selection,
+    reactivate_file_record,
+)
+from app.services.telegram import (
+    FileNotFoundPublishError,
+    MISSING_FILE_ERROR_PREFIX,
+    MISSING_FILE_REQUEUED_MARKER,
 )
 from app.web_contexts import (
     SELECTION_MODE_LABELS,
     SOURCE_SELECTION_MODE_LABELS,
+    already_sent_exists,
     annotate_rule,
     annotate_file_record,
     annotate_history_items,
@@ -42,6 +49,7 @@ from app.web_contexts import (
     get_channel_source_ids,
     get_file_record_or_404,
     get_rule_or_404,
+    get_rule_source_ids,
     get_rule_sources,
     get_sidebar_channels,
     get_source_or_404,
@@ -106,6 +114,19 @@ def parse_optional_message_thread_id(raw_value: str | None) -> int | None:
         raise ValueError("ID темы форума должен быть положительным целым числом") from exc
     if value <= 0 or value > MAX_MESSAGE_THREAD_ID:
         raise ValueError(f"ID темы форума должен быть числом от 1 до {MAX_MESSAGE_THREAD_ID}")
+    return value
+
+
+def parse_optional_filter_id(raw_value: str | None, field_label: str) -> int | None:
+    normalized_value = (raw_value or "").strip()
+    if not normalized_value or normalized_value.lower() == "none":
+        return None
+    try:
+        value = int(normalized_value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"{field_label} должен быть положительным целым числом") from exc
+    if value <= 0:
+        raise HTTPException(status_code=422, detail=f"{field_label} должен быть положительным целым числом")
     return value
 
 
@@ -539,7 +560,7 @@ def channel_history(
             "channel": channel,
             "items": items,
             "status": status,
-            "rule_id": rule_id,
+            "rule_id": rule_id or "",
             "rules": rules,
             "current_page": current_page,
             "current_per_page": current_per_page,
@@ -799,30 +820,33 @@ def rule_queue_preview(request: Request, rule_id: int, session: Session = Depend
 def history_page(
     request: Request,
     status: str = Query(default="all"),
-    source_id: int | None = Query(default=None),
+    source_id: str | None = Query(default=None),
     rule_id: str | None = Query(default=None),
-    channel_id: int | None = Query(default=None),
+    channel_id: str | None = Query(default=None),
     page: int = Query(default=1),
     per_page: int = Query(default=50),
     session: Session = Depends(get_session),
 ):
+    selected_source_id = parse_optional_filter_id(source_id, "ID источника")
+    selected_channel_id = parse_optional_filter_id(channel_id, "ID канала")
+    normalized_rule_id = (rule_id or "").strip()
     current_per_page = clamp_file_page_size(per_page)
     filters = []
     if status != "all":
         filters.append(PostHistory.status == status)
-    if source_id:
-        filters.append(PostHistory.source_id == source_id)
-    if rule_id == "manual":
+    if selected_source_id is not None:
+        filters.append(PostHistory.source_id == selected_source_id)
+    selected_rule_filter: int | str = ""
+    if normalized_rule_id == "manual":
+        selected_rule_filter = "manual"
         filters.append(PostHistory.manual_trigger.is_(True))
-    elif rule_id:
-        try:
-            selected_rule_id = int(rule_id)
-        except ValueError:
-            selected_rule_id = None
+    else:
+        selected_rule_id = parse_optional_filter_id(normalized_rule_id, "ID правила")
         if selected_rule_id is not None:
+            selected_rule_filter = selected_rule_id
             filters.extend([PostHistory.rule_id == selected_rule_id, PostHistory.manual_trigger.is_(False)])
-    if channel_id:
-        filters.append(PostingRule.channel_id == channel_id)
+    if selected_channel_id is not None:
+        filters.append(PostingRule.channel_id == selected_channel_id)
 
     total_matching = session.scalar(
         select(func.count(PostHistory.id))
@@ -865,9 +889,9 @@ def history_page(
         {
             "items": items,
             "status": status,
-            "source_id": source_id,
-            "rule_id": rule_id,
-            "channel_id": channel_id,
+            "source_id": selected_source_id or "",
+            "rule_id": selected_rule_filter,
+            "channel_id": selected_channel_id or "",
             "sources": sources,
             "rules": rules,
             "channels": channels,
@@ -886,6 +910,53 @@ def history_page(
         },
         title="Глобальная история",
     )
+
+
+@router.post("/history/{history_id}/requeue")
+async def requeue_missing_history_file(
+    history_id: int,
+    return_to: str = Form(default="/history"),
+    _: None = Depends(csrf_protect),
+    session: Session = Depends(get_session),
+):
+    history = session.scalar(
+        select(PostHistory)
+        .options(
+            selectinload(PostHistory.file).selectinload(FileRecord.source),
+            selectinload(PostHistory.rule),
+        )
+        .where(PostHistory.id == history_id)
+    )
+    if history is None:
+        raise HTTPException(status_code=404, detail="Запись истории не найдена")
+    if (
+        history.status != "failed"
+        or history.file is None
+        or history.rule is None
+        or not (history.message or "").startswith(MISSING_FILE_ERROR_PREFIX)
+        or MISSING_FILE_REQUEUED_MARKER in (history.message or "")
+    ):
+        raise HTTPException(status_code=409, detail="Эту запись нельзя вернуть в очередь")
+
+    file_record = history.file
+    source = file_record.source
+    if history.source_id != source.id or source.id not in get_rule_source_ids(session, history.rule):
+        raise HTTPException(status_code=409, detail="Источник файла больше не подключен к правилу")
+    if source.scan_in_progress:
+        raise HTTPException(status_code=409, detail="Дождитесь завершения сканирования источника")
+
+    try:
+        reactivate_file_record(file_record)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    history.message = f"{history.message}\n{MISSING_FILE_REQUEUED_MARKER}."
+    session.commit()
+
+    normalized_return_to = (return_to or "").strip()
+    redirect_path = sanitize_next_path(normalized_return_to)
+    if redirect_path == "/" and normalized_return_to != "/":
+        redirect_path = "/history"
+    return RedirectResponse(redirect_path, status_code=303)
 
 
 @router.post("/channels")
@@ -1455,6 +1526,8 @@ async def create_rule(
     selection_mode: str = Form(default="random_no_repeat"),
     repeat_after_exhaustion: str | None = Form(default=None),
     caption_template: str = Form(default=""),
+    include_filename_in_caption: str | None = Form(default=None),
+    include_file_path_in_caption: str | None = Form(default=None),
     chat_id_override: str = Form(default=""),
     send_as_document: str | None = Form(default=None),
     convert_heic_to_jpeg: str | None = Form(default=None),
@@ -1480,6 +1553,8 @@ async def create_rule(
             "selection_mode": selection_mode,
             "chat_id_override": chat_id_override,
             "caption_template": caption_template,
+            "include_filename_in_caption": to_bool(include_filename_in_caption),
+            "include_file_path_in_caption": to_bool(include_filename_in_caption) and to_bool(include_file_path_in_caption),
             "repeat_after_exhaustion": to_bool(repeat_after_exhaustion),
             "send_as_document": to_bool(send_as_document),
             "convert_heic_to_jpeg": to_bool(convert_heic_to_jpeg),
@@ -1533,6 +1608,8 @@ async def create_rule(
         selection_mode=selection_mode,
         repeat_after_exhaustion=to_bool(repeat_after_exhaustion),
         caption_template=caption_template.strip() or None,
+        include_filename_in_caption=to_bool(include_filename_in_caption),
+        include_file_path_in_caption=to_bool(include_filename_in_caption) and to_bool(include_file_path_in_caption),
         chat_id_override=chat_id_override.strip() or None,
         send_as_document=to_bool(send_as_document),
         convert_heic_to_jpeg=to_bool(convert_heic_to_jpeg),
@@ -1587,6 +1664,8 @@ async def import_rule_to_channel(
         selection_mode=template_rule.selection_mode,
         repeat_after_exhaustion=template_rule.repeat_after_exhaustion,
         caption_template=template_rule.caption_template,
+        include_filename_in_caption=getattr(template_rule, "include_filename_in_caption", False),
+        include_file_path_in_caption=getattr(template_rule, "include_file_path_in_caption", False),
         chat_id_override=template_rule.chat_id_override,
         send_as_document=template_rule.send_as_document,
         convert_heic_to_jpeg=template_rule.convert_heic_to_jpeg,
@@ -1623,6 +1702,8 @@ async def update_rule(
     selection_mode: str = Form(default="random_no_repeat"),
     repeat_after_exhaustion: str | None = Form(default=None),
     caption_template: str = Form(default=""),
+    include_filename_in_caption: str | None = Form(default=None),
+    include_file_path_in_caption: str | None = Form(default=None),
     chat_id_override: str = Form(default=""),
     send_as_document: str | None = Form(default=None),
     convert_heic_to_jpeg: str | None = Form(default=None),
@@ -1670,6 +1751,8 @@ async def update_rule(
     rule.selection_mode = selection_mode
     rule.repeat_after_exhaustion = to_bool(repeat_after_exhaustion)
     rule.caption_template = caption_template.strip() or None
+    rule.include_filename_in_caption = to_bool(include_filename_in_caption)
+    rule.include_file_path_in_caption = to_bool(include_filename_in_caption) and to_bool(include_file_path_in_caption)
     rule.chat_id_override = chat_id_override.strip() or None
     rule.send_as_document = to_bool(send_as_document)
     rule.convert_heic_to_jpeg = to_bool(convert_heic_to_jpeg)
@@ -1740,6 +1823,8 @@ async def post_queue_file_now(
     try:
         message_id = await publish_file(channel, rule, file_record)
     except TelegramPublishError as exc:
+        if isinstance(exc, FileNotFoundPublishError):
+            file_record.is_active = False
         history = PostHistory(
             rule_id=rule.id,
             source_id=file_record.source_id,

@@ -62,6 +62,14 @@ def migrate_schema() -> None:
                 )
             if "last_source_id" not in rule_columns:
                 connection.execute(text("ALTER TABLE posting_rules ADD COLUMN last_source_id INTEGER"))
+            if "include_filename_in_caption" not in rule_columns:
+                connection.execute(
+                    text("ALTER TABLE posting_rules ADD COLUMN include_filename_in_caption INTEGER DEFAULT 0 NOT NULL")
+                )
+            if "include_file_path_in_caption" not in rule_columns:
+                connection.execute(
+                    text("ALTER TABLE posting_rules ADD COLUMN include_file_path_in_caption INTEGER DEFAULT 0 NOT NULL")
+                )
 
         if "post_history" in existing_tables:
             history_columns = {column["name"] for column in inspector.get_columns("post_history")}

@@ -173,6 +173,8 @@ class PostingRule(TimestampMixin, Base):
     selection_mode: Mapped[str] = mapped_column(String(40), default="random_no_repeat", nullable=False)
     repeat_after_exhaustion: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     caption_template: Mapped[str | None] = mapped_column(Text)
+    include_filename_in_caption: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    include_file_path_in_caption: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     chat_id_override: Mapped[str | None] = mapped_column(String(255))
     send_as_document: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     convert_heic_to_jpeg: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

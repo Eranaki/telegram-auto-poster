@@ -55,7 +55,7 @@ Relationships включают files, link tables и legacy `rules` ownership ч
 
 ### `posting_rules`
 
-Глобально unique name, enabled, channel FK и mandatory legacy primary `source_id`. Хранит interval/allowed hours/jitter, burst state, selection settings, caption/chat override, document/HEIF flags и runtime timestamps/result.
+Глобально unique name, enabled, channel FK и mandatory legacy primary `source_id`. Хранит interval/allowed hours/jitter, burst state, selection settings, caption/chat override, флаги добавления имени/relative path файла, document/HEIF flags и runtime timestamps/result.
 
 Актуальный multi-source набор задает `rule_sources`; `source_id` синхронизируется с минимальным selected ID для совместимости. `source_selection_mode` хранится, но фактически picker его не использует.
 
@@ -89,9 +89,11 @@ Singleton ID 1: list/grid mode, card size, page size, thumbnail size и timestam
 
 ## Startup Migrations
 
+Перед первым запуском новой версии нужно остановить приложение и сделать файловую копию SQLite DB. Новые caption flags добавляются idempotent `ALTER TABLE` со значением `0` для существующих правил; рабочая БД не используется для проверки migration path.
+
 Подтвержденные upgrades:
 
-- добавление channel/burst/HEIF/source-selection fields в `posting_rules`;
+- добавление channel/burst/HEIF/source-selection и filename-caption fields в `posting_rules`;
 - добавление nullable `message_thread_id` в `telegram_channels` для тем групп-форумов;
 - добавление `manual_trigger` в `post_history`;
 - добавление manual/progress fields в `content_sources`;

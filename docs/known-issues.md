@@ -8,18 +8,6 @@
 
 ## Критические И Высокие
 
-### KI-001: три rule endpoint падают с `NameError`
-
-**Подтверждено.** `app/web.py` использует, но не импортирует `get_rule_source_ids` и `already_sent_exists` из `web_contexts.py`.
-
-Затронуты:
-
-- `GET /rules/{rule_id}/queue` (`web.py:715`, `735`);
-- `POST /channels/{channel_id}/rules/import` (`web.py:1519`);
-- `POST /rules/{rule_id}/files/{file_id}/post-now` (`web.py:1651`).
-
-Import route уже делает `flush` до ошибки, но request session закрывается без commit; явного rollback нет. Queue и direct selected-file publication фактически не работают.
-
 ### KI-002: active content отдается inline с origin панели
 
 **Подтверждено.** `GET /files/{id}/original` использует guessed MIME и `Content-Disposition: inline` (`web.py:554-567`). Documents включают неизвестные extensions, в том числе HTML/SVG/XML. При открытии недоверенный файл может исполняться same-origin с authenticated panel. CSP отсутствует.
@@ -36,7 +24,7 @@ Import route уже делает `flush` до ошибки, но request session
 
 ### KI-005: неожиданные ошибки публикации обходят history/scheduling
 
-**Подтверждено.** Callers ловят только `TelegramPublishError`, но caption formatting, file open и HTTPX могут выбросить другие exceptions. Rule может остаться due и повторяться каждый tick; request может вернуть 500. Token находится в URL и потенциально может попасть в exception logs.
+**Частично исправлено.** Ошибки форматирования caption теперь преобразуются в `TelegramPublishError`, но file-open race, permission errors и HTTPX exceptions все еще могут обойти history/scheduling. Rule может остаться due и повторяться каждый tick; token находится в URL и потенциально может попасть в exception logs.
 
 ### KI-006: default credentials предсказуемы
 
@@ -132,7 +120,7 @@ Import route уже делает `flush` до ошибки, но request session
 
 ### KI-028: tests и quality gates отсутствуют
 
-**Частично исправлено.** Добавлены стандартные `unittest` для тем Telegram и ленивого content browser, включая временную SQLite, mocked Telegram HTTP и FastAPI route checks. Отдельные CI jobs, lint, formatting, type checking и coverage по-прежнему отсутствуют.
+**Частично исправлено.** Добавлены стандартные `unittest` для тем Telegram, lazy content browser, rule import, history filters/requeue и filename captions, включая временную SQLite, mocked Telegram HTTP и FastAPI route checks. Отдельные CI jobs, lint, formatting, type checking и coverage по-прежнему отсутствуют.
 
 ### KI-029: local DB paths расходятся
 
@@ -154,6 +142,18 @@ Import route уже делает `flush` до ошибки, но request session
 
 ## Исправлено
 
+### KI-035: глобальная история сериализовала optional IDs как `None`
+
+**Исправлено.** Global history принимает blank и legacy `None` как отсутствие фильтра, валидирует остальные source/channel/rule IDs внутри route и не генерирует невалидные numeric query values в pagination.
+
+### KI-034: missing file нельзя было точечно вернуть в picker
+
+**Исправлено.** Missing-file publication деактивирует индексную запись. Failed history показывает однократный CSRF-protected requeue action, который после восстановления volume проверяет текущий source/rule, `/content` containment, recursion и file type, обновляет metadata и активирует файл без публикации. Race с automatic scan остается частью KI-010.
+
+### KI-001: три rule endpoint падали с `NameError`
+
+**Исправлено.** `get_rule_source_ids` и `already_sent_exists` импортированы в `app.web`; queue preview, import existing rule и direct selected-file prevalidation снова доходят до своей основной логики.
+
 ### KI-033: форма источника рекурсивно обходила весь `/content`
 
 **Исправлено ленивым проводником.** Старый endpoint строил и сортировал список всех вложенных каталогов до показа формы, а браузер создавал `<option>` для каждого пути. Теперь API читает один уровень, возвращает до 200 папок за запрос, кеширует каталог по `mtime` и проверяет resolved containment внутри `/content`. Уже сохраненный путь можно отправить без загрузки проводника.
@@ -168,8 +168,7 @@ Import route уже делает `flush` до ошибки, но request session
 
 ## Приоритет Исправлений
 
-1. KI-001, затем route smoke tests.
-2. KI-002 и KI-003 до доверия панели недоверенному контенту/операциям удаления.
-3. KI-004/KI-005: DB-backed execution claim, idempotency и normalized errors.
-4. KI-007/KI-008/KI-009/KI-010: timezone-aware scheduler и вынесение blocking jobs.
-5. KI-006/KI-012/KI-013/KI-014/KI-019: deployment и data integrity hardening.
+1. KI-002 и KI-003 до доверия панели недоверенному контенту/операциям удаления.
+2. KI-004/KI-005: DB-backed execution claim, idempotency и normalized errors.
+3. KI-007/KI-008/KI-009/KI-010: timezone-aware scheduler и вынесение blocking jobs.
+4. KI-006/KI-012/KI-013/KI-014/KI-019: deployment и data integrity hardening.

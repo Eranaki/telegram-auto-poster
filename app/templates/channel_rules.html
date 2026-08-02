@@ -199,6 +199,14 @@
                     <textarea name="caption_template" rows="3">{{ rule_form.caption_template }}</textarea>
                 </label>
                 <label class="checkbox">
+                    <input type="checkbox" name="include_filename_in_caption" data-caption-filename {% if rule_form.include_filename_in_caption %}checked{% endif %} />
+                    <span>Писать имя файла</span>
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="include_file_path_in_caption" data-caption-file-path {% if rule_form.include_file_path_in_caption %}checked{% endif %} />
+                    <span>Добавлять путь к файлу (как в истории)</span>
+                </label>
+                <label class="checkbox">
                     <input type="checkbox" name="repeat_after_exhaustion" {% if rule_form.repeat_after_exhaustion %}checked{% endif %} />
                     <span>Повторять после исчерпания уникальных файлов</span>
                 </label>
@@ -248,6 +256,7 @@
                     </li>
                     <li><strong>Переопределить канал</strong> — если нужно временно отправлять это правило в другой Telegram-канал.</li>
                     <li><strong>Шаблон подписи</strong> — подпись только для этого правила, с приоритетом над подписью канала.</li>
+                    <li><strong>Писать имя файла</strong> — добавляет имя в конец подписи. Опция пути вместо basename использует путь относительно источника, как в истории.</li>
                     <li><strong>Повторять после исчерпания</strong> — позволяет снова запускать правило по тем же файлам после полного прохода.</li>
                     <li><strong>Всегда отправлять как документ</strong> — полезно, если Telegram плохо обрабатывает медиа как фото или видео.</li>
                     <li><strong>Автоматически конвертировать HEIC в JPEG</strong> — для проблемных HEIC/HEIF-файлов перед отправкой как фото.</li>

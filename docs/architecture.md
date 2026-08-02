@@ -126,6 +126,8 @@ sequenceDiagram
 - исключения вне `TelegramPublishError` не записываются в history и не пересчитывают schedule;
 - manual rule run ошибочно записывается как scheduled, потому что `manual_trigger` не передается.
 
+При `FileNotFoundPublishError` индексная запись файла деактивируется, а failed history сохраняется. `POST /history/{history_id}/requeue` после восстановления volume повторно проверяет source root относительно `/content`, file containment, recursion/type filters и текущую связь source с rule, обновляет metadata и реактивирует файл. History row получает отметку о возврате и повторно не обрабатывается. Endpoint не вызывает Telegram и не меняет schedule; после commit файл снова доступен обычному picker. Общий race с automatic scan остается в рамках KI-010.
+
 ## Границы Доверия
 
 - Браузер администратора имеет полный контроль над каналами, источниками и отправкой.

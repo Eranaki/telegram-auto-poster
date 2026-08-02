@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import ChannelSource, ContentSource, FileRecord, PostHistory, PostingRule, RuleSource, TelegramChannel
 from app.services.previews import preview_exists
 from app.services.scanner import MEDIA_TYPE_LABELS
+from app.services.telegram import MISSING_FILE_ERROR_PREFIX, MISSING_FILE_REQUEUED_MARKER
 from app.web_sources import annotate_source, attach_source_file_counts, build_source_form_defaults
 
 SELECTION_MODE_LABELS = {
@@ -92,6 +93,13 @@ def annotate_history_item(item: PostHistory, thumbnail_size_px: int = 96) -> Pos
         else "Канал не указан"
     )
     item.file_display_name = item.file.relative_path if item.file is not None else "Файл не указан"
+    item.can_requeue_missing_file = bool(
+        item.status == "failed"
+        and item.file is not None
+        and item.rule is not None
+        and (item.message or "").startswith(MISSING_FILE_ERROR_PREFIX)
+        and MISSING_FILE_REQUEUED_MARKER not in (item.message or "")
+    )
     item.attempted_at_display = (
         item.attempted_at.strftime("%Y-%m-%d %H:%M")
         if getattr(item, "attempted_at", None) is not None
@@ -481,6 +489,8 @@ def build_rule_form_defaults(channel_id: int) -> dict[str, object]:
         "selection_mode": "random_no_repeat",
         "chat_id_override": "",
         "caption_template": "",
+        "include_filename_in_caption": False,
+        "include_file_path_in_caption": False,
         "repeat_after_exhaustion": True,
         "send_as_document": False,
         "convert_heic_to_jpeg": False,

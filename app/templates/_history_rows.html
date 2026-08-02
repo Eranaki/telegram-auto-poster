@@ -25,6 +25,13 @@
             </div>
             <strong>{{ item.file_display_name }}</strong>
             <small>{{ item.message or "Без подробностей" }}</small>
+            {% if item.can_requeue_missing_file %}
+            <form method="post" action="/history/{{ item.id }}/requeue" class="history-row-action">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="return_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}" />
+                <button type="submit" class="secondary">Вернуть файл в очередь</button>
+            </form>
+            {% endif %}
         </div>
         <div class="history-time">
             {{ item.attempted_at_display }}

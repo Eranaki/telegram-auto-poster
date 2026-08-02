@@ -1212,6 +1212,16 @@ select:disabled {
     overflow-wrap: anywhere;
 }
 
+.history-row-action {
+    align-self: flex-start;
+    margin-top: 2px;
+}
+
+.history-row-action button {
+    padding: 7px 10px;
+    font-size: 0.82rem;
+}
+
 .history-topline {
     display: flex;
     gap: 8px 12px;
