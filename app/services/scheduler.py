@@ -15,7 +15,7 @@ from app.models import ContentSource, FileBrowserSettings, PostHistory, PostingR
 from app.services.picker import pick_file_for_rule
 from app.services.previews import generate_missing_previews
 from app.services.scanner import scan_source
-from app.services.telegram import FileNotFoundPublishError, TelegramPublishError, publish_file
+from app.services.telegram import RequeueableFilePublishError, TelegramPublishError, publish_file
 
 
 def is_rule_in_allowed_window(rule: PostingRule, current_time: datetime) -> bool:
@@ -246,7 +246,7 @@ class AppScheduler:
             try:
                 message_id = await publish_file(channel, rule, file_record)
             except TelegramPublishError as exc:
-                if isinstance(exc, FileNotFoundPublishError):
+                if isinstance(exc, RequeueableFilePublishError):
                     file_record.is_active = False
                 history = PostHistory(
                     rule_id=rule.id,

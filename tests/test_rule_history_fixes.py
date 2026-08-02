@@ -34,7 +34,11 @@ from app.models import (  # noqa: E402
     RuleSource,
     TelegramChannel,
 )
-from app.services.telegram import FileNotFoundPublishError, publish_file, render_caption  # noqa: E402
+from app.services.telegram import (  # noqa: E402
+    FileNotFoundPublishError,
+    publish_file,
+    render_caption,
+)
 from app.web import (  # noqa: E402
     import_rule_to_channel,
     parse_optional_filter_id,
@@ -52,6 +56,34 @@ def make_rule(channel_id: int, source_id: int, name: str = "Rule") -> PostingRul
         interval_minutes=60,
         selection_mode="random_no_repeat",
     )
+
+
+class TelegramResponse:
+    def __init__(self, status_code: int, payload: dict[str, object]):
+        self.status_code = status_code
+        self.payload = payload
+        self.text = str(payload)
+
+    def json(self):
+        return self.payload
+
+
+class SequencedTelegramClient:
+    responses: list[TelegramResponse] = []
+    calls: list[tuple[str, set[str]]] = []
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        return False
+
+    async def post(self, url, data, files):
+        self.__class__.calls.append((url, set(files)))
+        return self.__class__.responses.pop(0)
 
 
 class RuleHistoryFixTests(unittest.TestCase):
@@ -247,6 +279,104 @@ class RuleHistoryFixTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundPublishError):
                 asyncio.run(publish_file(channel, rule, file_record))
         client.assert_not_called()
+
+    def test_invalid_photo_dimensions_falls_back_to_document_once(self):
+        channel = SimpleNamespace(
+            bot_token="token",
+            chat_id="chat",
+            message_thread_id=None,
+            default_caption=None,
+            disable_notification=False,
+            protect_content=False,
+            parse_mode=None,
+        )
+        rule = SimpleNamespace(
+            chat_id_override=None,
+            caption_template=None,
+            convert_heic_to_jpeg=False,
+            send_as_document=False,
+            include_filename_in_caption=False,
+        )
+        SequencedTelegramClient.calls = []
+        SequencedTelegramClient.responses = [
+            TelegramResponse(400, {"ok": False, "description": "Bad Request: PHOTO_INVALID_DIMENSIONS"}),
+            TelegramResponse(200, {"ok": True, "result": {"message_id": 321}}),
+        ]
+
+        with tempfile.NamedTemporaryFile(suffix=".jpg") as source_file:
+            file_record = SimpleNamespace(
+                absolute_path=source_file.name,
+                relative_path="photo.jpg",
+                media_kind="photo",
+                source=SimpleNamespace(name="Source"),
+            )
+            with patch("app.services.telegram.httpx.AsyncClient", SequencedTelegramClient):
+                message_id = asyncio.run(publish_file(channel, rule, file_record))
+
+        self.assertEqual(message_id, "321")
+        self.assertEqual(len(SequencedTelegramClient.calls), 2)
+        self.assertTrue(SequencedTelegramClient.calls[0][0].endswith("/sendPhoto"))
+        self.assertEqual(SequencedTelegramClient.calls[0][1], {"photo"})
+        self.assertTrue(SequencedTelegramClient.calls[1][0].endswith("/sendDocument"))
+        self.assertEqual(SequencedTelegramClient.calls[1][1], {"document"})
+
+    def test_failed_document_fallback_stops_and_can_be_requeued(self):
+        source_root = Path(self.temp_dir.name) / "fallback-source"
+        source_root.mkdir()
+        file_path = source_root / "photo.jpg"
+        file_path.write_bytes(b"photo")
+
+        with self.session_factory() as session:
+            _, source, rule = self.seed_channel_source_rule(session, source_path=str(source_root))
+            file_record = FileRecord(
+                source_id=source.id,
+                relative_path="photo.jpg",
+                absolute_path=str(file_path),
+                media_kind="photo",
+                size=file_path.stat().st_size,
+                mtime_ns=file_path.stat().st_mtime_ns,
+                fingerprint="fingerprint",
+            )
+            session.add(file_record)
+            session.commit()
+            request = SimpleNamespace(
+                headers={},
+                url_for=lambda name, **params: f"/rules/{params['rule_id']}/queue",
+            )
+            SequencedTelegramClient.calls = []
+            SequencedTelegramClient.responses = [
+                TelegramResponse(400, {"ok": False, "description": "Bad Request: PHOTO_INVALID_DIMENSIONS"}),
+                TelegramResponse(400, {"ok": False, "description": "Bad Request: document rejected"}),
+            ]
+
+            with patch("app.services.telegram.httpx.AsyncClient", SequencedTelegramClient):
+                response = asyncio.run(
+                    post_queue_file_now(
+                        request=request,
+                        rule_id=rule.id,
+                        file_id=file_record.id,
+                        _=None,
+                        session=session,
+                    )
+                )
+
+            history = session.scalar(select(PostHistory).where(PostHistory.file_id == file_record.id))
+            self.assertEqual(response.status_code, 303)
+            self.assertEqual(len(SequencedTelegramClient.calls), 2)
+            self.assertFalse(file_record.is_active)
+            self.assertTrue(history.message.startswith("Не удалось отправить проблемное фото как документ:"))
+
+            with patch("app.services.scanner.CONTENT_ROOT", source_root):
+                requeue_response = asyncio.run(
+                    requeue_missing_history_file(
+                        history_id=history.id,
+                        return_to="/history",
+                        _=None,
+                        session=session,
+                    )
+                )
+            self.assertEqual(requeue_response.status_code, 303)
+            self.assertTrue(file_record.is_active)
 
 
 class CaptionFilenameTests(unittest.TestCase):

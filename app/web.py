@@ -25,9 +25,10 @@ from app.services.scanner import (
     reactivate_file_record,
 )
 from app.services.telegram import (
-    FileNotFoundPublishError,
     MISSING_FILE_ERROR_PREFIX,
     MISSING_FILE_REQUEUED_MARKER,
+    PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX,
+    RequeueableFilePublishError,
 )
 from app.web_contexts import (
     SELECTION_MODE_LABELS,
@@ -933,7 +934,9 @@ async def requeue_missing_history_file(
         history.status != "failed"
         or history.file is None
         or history.rule is None
-        or not (history.message or "").startswith(MISSING_FILE_ERROR_PREFIX)
+        or not (history.message or "").startswith(
+            (MISSING_FILE_ERROR_PREFIX, PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX)
+        )
         or MISSING_FILE_REQUEUED_MARKER in (history.message or "")
     ):
         raise HTTPException(status_code=409, detail="Эту запись нельзя вернуть в очередь")
@@ -1823,7 +1826,7 @@ async def post_queue_file_now(
     try:
         message_id = await publish_file(channel, rule, file_record)
     except TelegramPublishError as exc:
-        if isinstance(exc, FileNotFoundPublishError):
+        if isinstance(exc, RequeueableFilePublishError):
             file_record.is_active = False
         history = PostHistory(
             rule_id=rule.id,

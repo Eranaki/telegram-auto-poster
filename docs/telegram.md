@@ -27,6 +27,8 @@
 - иначе HEIF отправляется как document;
 - temporary JPEG удаляется в `finally`.
 
+Для обычного `sendPhoto` действует один автоматический fallback: точная ошибка `PHOTO_INVALID_DIMENSIONS` немедленно повторяет отправку исходного файла через `sendDocument`. Если document request тоже отклонен, publisher прекращает попытки, сохраняет typed error в history и деактивирует файл до ручного возврата. Другие ошибки `sendPhoto` fallback не запускают.
+
 ## Подписи
 
 Template берется из `rule.caption_template`, затем `channel.default_caption`. Поддерживаются поля:
@@ -52,7 +54,7 @@ Template берется из `rule.caption_template`, затем `channel.defaul
 5. Due non-manual source получает синхронный full scan перед публикацией.
 6. Picker выбирает active file из общего пула.
 7. `publish_file` проверяет token, chat target и существование файла. Missing file получает отдельный тип ошибки и деактивируется до восстановления через историю или full scan.
-8. Файл при необходимости преобразуется и отправляется одним multipart POST через новый `httpx.AsyncClient(timeout=180)`.
+8. Файл при необходимости преобразуется и отправляется multipart POST через новый `httpx.AsyncClient(timeout=180)`; только `PHOTO_INVALID_DIMENSIONS` допускает второй и последний request как document.
 9. Успех определяется по HTTP status и JSON `ok`; возвращается `result.message_id`.
 10. Scheduler обновляет file counters, history, rule result и next/burst run в одной DB commit после внешнего call.
 
@@ -76,6 +78,7 @@ Manual rule run также запускает burst state и пересчиты�
 В `TelegramPublishError` преобразуются:
 
 - отсутствующий token/chat ID/file;
+- неудачный document fallback после `PHOTO_INVALID_DIMENSIONS`;
 - HEIF conversion failure;
 - non-JSON Telegram response;
 - HTTP error или JSON `ok=false`.

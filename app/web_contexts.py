@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import ChannelSource, ContentSource, FileRecord, PostHistory, PostingRule, RuleSource, TelegramChannel
 from app.services.previews import preview_exists
 from app.services.scanner import MEDIA_TYPE_LABELS
-from app.services.telegram import MISSING_FILE_ERROR_PREFIX, MISSING_FILE_REQUEUED_MARKER
+from app.services.telegram import (
+    MISSING_FILE_ERROR_PREFIX,
+    MISSING_FILE_REQUEUED_MARKER,
+    PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX,
+)
 from app.web_sources import annotate_source, attach_source_file_counts, build_source_form_defaults
 
 SELECTION_MODE_LABELS = {
@@ -97,7 +101,7 @@ def annotate_history_item(item: PostHistory, thumbnail_size_px: int = 96) -> Pos
         item.status == "failed"
         and item.file is not None
         and item.rule is not None
-        and (item.message or "").startswith(MISSING_FILE_ERROR_PREFIX)
+        and (item.message or "").startswith((MISSING_FILE_ERROR_PREFIX, PHOTO_DOCUMENT_FALLBACK_ERROR_PREFIX))
         and MISSING_FILE_REQUEUED_MARKER not in (item.message or "")
     )
     item.attempted_at_display = (
