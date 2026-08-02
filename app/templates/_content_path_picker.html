@@ -1,0 +1,29 @@
+<div class="content-path-picker" data-content-path-browser data-selected-path="{{ content_path_value }}">
+    <div class="content-path-input-row">
+        <input
+            type="text"
+            name="path"
+            value="{{ content_path_value }}"
+            placeholder="Выберите папку внутри /content"
+            readonly
+            required
+            aria-label="Путь внутри контейнера"
+            data-content-path-input
+        />
+        <button type="button" class="secondary" data-content-path-toggle aria-expanded="false">Обзор</button>
+    </div>
+    <div class="content-path-browser" data-content-path-panel hidden>
+        <div class="content-path-toolbar">
+            <button type="button" class="secondary" data-content-path-root>В корень /content</button>
+            <button type="button" class="secondary" data-content-path-up disabled>На уровень выше</button>
+            <button type="button" class="secondary" data-content-path-close>Закрыть</button>
+        </div>
+        <div class="content-path-breadcrumbs" data-content-path-breadcrumbs></div>
+        <div class="content-path-status" data-content-path-status aria-live="polite">Выберите папку.</div>
+        <div class="content-path-list" data-content-path-list tabindex="-1"></div>
+        <div class="content-path-browser-actions">
+            <button type="button" data-content-path-choose disabled>Выбрать текущую папку</button>
+            <button type="button" class="secondary" data-content-path-more hidden>Показать еще</button>
+        </div>
+    </div>
+</div>

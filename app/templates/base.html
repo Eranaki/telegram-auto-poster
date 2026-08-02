@@ -274,104 +274,186 @@
                 document.body.classList.toggle("modal-open", open);
             };
 
-            const contentPathState = {
-                loaded: false,
-                loadingPromise: null,
-                paths: [],
-            };
+            const contentPathOptionsUrl = {{ request.url_for('content_path_options').path|tojson }};
 
             const syncContentPathSubmitState = (form) => {
                 if (!form) {
                     return;
                 }
-                const select = form.querySelector("[data-content-path-select]");
+                const pathInput = form.querySelector("[data-content-path-input]");
                 const submitButton = form.querySelector("[data-content-path-submit]");
-                if (!select || !submitButton) {
+                if (!pathInput || !submitButton) {
                     return;
                 }
-                submitButton.disabled = select.disabled || !select.value;
+                submitButton.disabled = !pathInput.value;
             };
 
-            const renderContentPathPlaceholder = (select, message) => {
-                select.innerHTML = "";
-                const option = document.createElement("option");
-                option.value = "";
-                option.textContent = message;
-                option.selected = true;
-                select.append(option);
-                select.disabled = true;
-                syncContentPathSubmitState(select.closest("form"));
+            const setContentPathStatus = (browser, message, isError = false) => {
+                const status = browser.querySelector("[data-content-path-status]");
+                status.textContent = message;
+                status.classList.toggle("is-error", isError);
             };
 
-            const applyContentPathOptions = (select, paths) => {
-                const selectedPath = select.dataset.selectedPath || "";
-                const normalizedPaths = Array.isArray(paths) ? paths.filter((path) => typeof path === "string" && path) : [];
-
-                select.innerHTML = "";
-                if (!normalizedPaths.length && !selectedPath) {
-                    renderContentPathPlaceholder(select, "Нет доступных путей внутри /content");
-                    return;
-                }
-
-                const missingSelectedPath = selectedPath && !normalizedPaths.includes(selectedPath);
-                const finalPaths = missingSelectedPath ? [selectedPath, ...normalizedPaths] : normalizedPaths;
-
-                finalPaths.forEach((path, index) => {
-                    const option = document.createElement("option");
-                    option.value = path;
-                    option.textContent = missingSelectedPath && index === 0 ? `${path} (текущий путь недоступен)` : path;
-                    if ((selectedPath && path === selectedPath) || (!selectedPath && index === 0)) {
-                        option.selected = true;
-                    }
-                    select.append(option);
+            const setContentPathLoading = (browser, loading) => {
+                browser.dataset.loading = loading ? "true" : "false";
+                browser.querySelector("[data-content-path-list]").setAttribute("aria-busy", String(loading));
+                browser.querySelector("[data-content-path-root]").disabled = loading;
+                browser.querySelector("[data-content-path-up]").disabled = true;
+                browser.querySelector("[data-content-path-choose]").disabled = true;
+                browser.querySelector("[data-content-path-more]").disabled = loading;
+                browser.querySelectorAll(".content-path-entry, .content-path-crumb").forEach((button) => {
+                    button.disabled = loading;
                 });
-
-                select.disabled = false;
-                syncContentPathSubmitState(select.closest("form"));
             };
 
-            const loadContentPaths = async () => {
-                if (contentPathState.loaded) {
-                    return contentPathState.paths;
-                }
-                if (contentPathState.loadingPromise) {
-                    return contentPathState.loadingPromise;
-                }
-
-                contentPathState.loadingPromise = fetch("/content-paths/options", { cache: "no-store" })
-                    .then(async (response) => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
-                        const payload = await response.json();
-                        const paths = Array.isArray(payload.paths) ? payload.paths : [];
-                        contentPathState.paths = paths;
-                        contentPathState.loaded = true;
-                        return paths;
-                    })
-                    .finally(() => {
-                        contentPathState.loadingPromise = null;
-                    });
-
-                return contentPathState.loadingPromise;
+            const renderContentPathBreadcrumbs = (browser, currentPath) => {
+                const breadcrumbs = browser.querySelector("[data-content-path-breadcrumbs]");
+                breadcrumbs.innerHTML = "";
+                const segments = currentPath.split("/").filter(Boolean);
+                let accumulatedPath = "";
+                segments.forEach((segment, index) => {
+                    accumulatedPath += `/${segment}`;
+                    if (index > 0) {
+                        const separator = document.createElement("span");
+                        separator.textContent = "/";
+                        breadcrumbs.append(separator);
+                    }
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "content-path-crumb";
+                    button.textContent = segment;
+                    button.dataset.path = accumulatedPath;
+                    button.addEventListener("click", () => loadContentPath(browser, button.dataset.path));
+                    breadcrumbs.append(button);
+                });
             };
 
-            const hydrateContentPathSelects = async (modal) => {
-                const selects = modal.querySelectorAll("[data-content-path-select]");
-                if (!selects.length) {
-                    return;
+            const renderContentPathPage = (browser, payload, append = false) => {
+                const list = browser.querySelector("[data-content-path-list]");
+                const upButton = browser.querySelector("[data-content-path-up]");
+                const chooseButton = browser.querySelector("[data-content-path-choose]");
+                const moreButton = browser.querySelector("[data-content-path-more]");
+                const children = Array.isArray(payload.children) ? payload.children : [];
+
+                browser.dataset.currentPath = payload.current_path || "/content";
+                browser.dataset.parentPath = payload.parent_path || "";
+                browser.dataset.nextOffset = String(payload.next_offset || 0);
+                browser.dataset.generation = String(payload.generation || 0);
+                setContentPathLoading(browser, false);
+                upButton.disabled = !payload.parent_path;
+                chooseButton.disabled = !payload.selectable;
+                moreButton.hidden = !payload.has_more;
+                renderContentPathBreadcrumbs(browser, browser.dataset.currentPath);
+
+                if (!append) {
+                    list.innerHTML = "";
                 }
+                children.forEach((child) => {
+                    if (!child || typeof child.path !== "string") {
+                        return;
+                    }
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "content-path-entry";
+                    button.textContent = child.name || child.path;
+                    button.title = child.path;
+                    button.addEventListener("click", () => loadContentPath(browser, child.path));
+                    list.append(button);
+                });
+                if (!list.children.length) {
+                    const emptyState = document.createElement("div");
+                    emptyState.className = "content-path-empty";
+                    emptyState.textContent = "В этой папке нет вложенных каталогов.";
+                    list.append(emptyState);
+                }
+                setContentPathStatus(browser, `Открыта папка: ${browser.dataset.currentPath}`);
+                if (!append && !browser.querySelector("[data-content-path-panel]").hidden) {
+                    list.focus();
+                }
+            };
 
-                selects.forEach((select) => renderContentPathPlaceholder(select, "Загрузка списка папок..."));
-
+            const loadContentPath = async (browser, path, offset = 0, append = false) => {
+                const requestId = String(Date.now() + Math.random());
+                browser.dataset.requestId = requestId;
+                setContentPathLoading(browser, true);
+                setContentPathStatus(browser, "Загрузка папок...");
                 try {
-                    const paths = await loadContentPaths();
-                    selects.forEach((select) => applyContentPathOptions(select, paths));
+                    const params = new URLSearchParams({ path: path || "/content", offset: String(offset), limit: "200" });
+                    if (offset > 0) {
+                        params.set("generation", browser.dataset.generation || "0");
+                    }
+                    const response = await fetch(`${contentPathOptionsUrl}?${params.toString()}`, { cache: "no-store" });
+                    const payload = await response.json();
+                    if (browser.dataset.requestId !== requestId) {
+                        return;
+                    }
+                    if (response.status === 409 && append) {
+                        await loadContentPath(browser, path);
+                        return;
+                    }
+                    if (!response.ok) {
+                        throw new Error(payload.detail || `HTTP ${response.status}`);
+                    }
+                    renderContentPathPage(browser, payload, append);
                 } catch (error) {
                     console.debug("Не удалось загрузить список папок", error);
-                    selects.forEach((select) => renderContentPathPlaceholder(select, "Не удалось загрузить список папок"));
+                    if (browser.dataset.requestId === requestId) {
+                        setContentPathLoading(browser, false);
+                        browser.querySelector("[data-content-path-more]").hidden = true;
+                        browser.querySelector("[data-content-path-more]").disabled = true;
+                        setContentPathStatus(browser, error.message || "Не удалось загрузить список папок", true);
+                    }
                 }
             };
+
+            document.querySelectorAll("[data-content-path-browser]").forEach((browser) => {
+                const input = browser.querySelector("[data-content-path-input]");
+                const panel = browser.querySelector("[data-content-path-panel]");
+                const toggleButton = browser.querySelector("[data-content-path-toggle]");
+                const closeButton = browser.querySelector("[data-content-path-close]");
+                const rootButton = browser.querySelector("[data-content-path-root]");
+                const upButton = browser.querySelector("[data-content-path-up]");
+                const chooseButton = browser.querySelector("[data-content-path-choose]");
+                const moreButton = browser.querySelector("[data-content-path-more]");
+
+                syncContentPathSubmitState(browser.closest("form"));
+                toggleButton.addEventListener("click", () => {
+                    panel.hidden = !panel.hidden;
+                    toggleButton.setAttribute("aria-expanded", String(!panel.hidden));
+                    if (!panel.hidden && !browser.dataset.currentPath) {
+                        void loadContentPath(browser, input.value || "/content");
+                    }
+                });
+                closeButton.addEventListener("click", () => {
+                    panel.hidden = true;
+                    toggleButton.setAttribute("aria-expanded", "false");
+                    toggleButton.focus();
+                });
+                rootButton.addEventListener("click", () => {
+                    void loadContentPath(browser, "/content");
+                });
+                upButton.addEventListener("click", () => {
+                    if (browser.dataset.parentPath) {
+                        void loadContentPath(browser, browser.dataset.parentPath);
+                    }
+                });
+                chooseButton.addEventListener("click", () => {
+                    input.value = browser.dataset.currentPath || "";
+                    browser.dataset.selectedPath = input.value;
+                    panel.hidden = true;
+                    toggleButton.setAttribute("aria-expanded", "false");
+                    syncContentPathSubmitState(browser.closest("form"));
+                    toggleButton.focus();
+                });
+                moreButton.addEventListener("click", () => {
+                    void loadContentPath(
+                        browser,
+                        browser.dataset.currentPath,
+                        Number(browser.dataset.nextOffset || 0),
+                        true,
+                    );
+                });
+            });
 
             const openModal = (modalId) => {
                 const modal = document.querySelector(`[data-modal="${modalId}"]`);
@@ -380,7 +462,6 @@
                 }
                 modal.hidden = false;
                 setModalBodyState(true);
-                void hydrateContentPathSelects(modal);
             };
 
             const closeModal = (modal) => {

@@ -468,6 +468,100 @@ button {
     font-size: 0.92rem;
 }
 
+.content-path-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+}
+
+.content-path-field > span {
+    font-size: 0.92rem;
+}
+
+.content-path-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.content-path-input-row input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.content-path-input-row button {
+    flex: 0 0 auto;
+}
+
+.content-path-browser {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--control-bg);
+}
+
+.content-path-toolbar,
+.content-path-browser-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.content-path-breadcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.content-path-crumb,
+.content-path-entry {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: none;
+}
+
+.content-path-crumb {
+    padding: 5px 8px;
+    font-size: 0.82rem;
+}
+
+.content-path-entry {
+    width: 100%;
+    padding: 9px 11px;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+.content-path-crumb:hover,
+.content-path-entry:hover {
+    background: var(--control-hover);
+    color: var(--text);
+}
+
+.content-path-list {
+    display: grid;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 3px;
+}
+
+.content-path-status,
+.content-path-empty {
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.content-path-status.is-error {
+    color: var(--danger);
+}
+
 .label-with-help {
     display: inline-flex;
     align-items: center;

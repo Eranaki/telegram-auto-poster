@@ -105,12 +105,11 @@
                                     <span>Название</span>
                                     <input type="text" name="name" value="{{ edit_name }}" required />
                                 </label>
-                                <label>
+                                <div class="content-path-field">
                                     <span>Путь внутри контейнера</span>
-                                    <select name="path" required disabled data-content-path-select data-selected-path="{{ edit_path }}">
-                                        <option value="{{ edit_path }}">{{ edit_path or "Загрузка списка папок..." }}</option>
-                                    </select>
-                                </label>
+                                    {% set content_path_value = edit_path %}
+                                    {% include "_content_path_picker.html" %}
+                                </div>
                                 <label class="full">
                                     <span>Тип файлов</span>
                                     <div class="checkbox-group">
@@ -139,7 +138,7 @@
                                     <span>Включить источник</span>
                                 </label>
                                 <div class="actions full">
-                                    <button type="submit" data-content-path-submit disabled>Сохранить изменения</button>
+                                    <button type="submit" data-content-path-submit {% if not edit_path %}disabled{% endif %}>Сохранить изменения</button>
                                 </div>
                             </form>
                         </div>
@@ -174,12 +173,11 @@
                         <span>Название</span>
                         <input type="text" name="name" value="{{ source_form.name }}" placeholder="Источник A" required />
                     </label>
-                    <label>
+                    <div class="content-path-field">
                         <span>Путь внутри контейнера</span>
-                        <select name="path" required disabled data-content-path-select data-selected-path="{{ source_form.path }}">
-                            <option value="{{ source_form.path }}">{{ source_form.path or "Загрузка списка папок..." }}</option>
-                        </select>
-                    </label>
+                        {% set content_path_value = source_form.path %}
+                        {% include "_content_path_picker.html" %}
+                    </div>
                     <label class="full">
                         <span>Тип файлов</span>
                         <div class="checkbox-group">
@@ -208,7 +206,7 @@
                         <span>Включить источник</span>
                     </label>
                     <div class="actions full">
-                        <button type="submit" data-content-path-submit disabled>Создать и подключить</button>
+                        <button type="submit" data-content-path-submit {% if not source_form.path %}disabled{% endif %}>Создать и подключить</button>
                     </div>
                 </form>
             </section>

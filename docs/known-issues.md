@@ -78,7 +78,7 @@ Import route уже делает `flush` до ошибки, но request session
 
 ### KI-015: source path containment недостаточен
 
-**Подтверждено условно.** Если discovery list пуст, validation принимает любой absolute path. Runtime directory traversal не проверяет resolved containment для symlinks. Authenticated admin может индексировать container-readable files; exact symlink behavior динамически не проверено.
+**Частично исправлено.** При доступном runtime mount создание/редактирование source требует существующий resolved directory внутри `/content`; Compose fallback принимает только точные mount destinations, а проводник скрывает directory symlinks наружу. Однако scanner отдельно не перепроверяет resolved containment source root и каждого файла: сохраненный каталог можно позже подменить symlink, а file symlink внутри разрешенного source потенциально может указывать наружу. Это требует отдельного исправления scan/publish pipeline.
 
 ### KI-016: небезопасные redirect sinks
 
@@ -132,7 +132,7 @@ Import route уже делает `flush` до ошибки, но request session
 
 ### KI-028: tests и quality gates отсутствуют
 
-**Подтверждено.** Не найдены tests, pytest config, lint, formatting, type checking или coverage. Текущие missing imports были бы обнаружены route smoke test.
+**Частично исправлено.** Добавлены стандартные `unittest` для тем Telegram и ленивого content browser, включая временную SQLite, mocked Telegram HTTP и FastAPI route checks. Отдельные CI jobs, lint, formatting, type checking и coverage по-прежнему отсутствуют.
 
 ### KI-029: local DB paths расходятся
 
@@ -153,6 +153,10 @@ Import route уже делает `flush` до ошибки, но request session
 - Поддерживаемые historical database versions неизвестны.
 
 ## Исправлено
+
+### KI-033: форма источника рекурсивно обходила весь `/content`
+
+**Исправлено ленивым проводником.** Старый endpoint строил и сортировал список всех вложенных каталогов до показа формы, а браузер создавал `<option>` для каждого пути. Теперь API читает один уровень, возвращает до 200 папок за запрос, кеширует каталог по `mtime` и проверяет resolved containment внутри `/content`. Уже сохраненный путь можно отправить без загрузки проводника.
 
 ### KI-032: нельзя было выбрать тему Telegram-группы
 

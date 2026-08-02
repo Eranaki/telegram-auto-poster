@@ -59,14 +59,15 @@ from app.web_security import (
     sanitize_next_path,
 )
 from app.web_sources import (
+    ContentPathChangedError,
     annotate_source,
     attach_source_file_counts,
     build_source_form_defaults,
     build_source_form_from_source,
     build_source_form_state,
     deserialize_media_type_selection,
-    load_available_content_paths,
-    refresh_available_content_paths,
+    browse_content_paths,
+    clear_content_path_cache,
     serialize_media_type_selection,
     to_bool,
     validate_source_payload,
@@ -367,13 +368,23 @@ def sources_page(request: Request, session: Session = Depends(get_session)):
 
 
 @router.get("/content-paths/options")
-def content_path_options():
-    return JSONResponse({"paths": load_available_content_paths()})
+def content_path_options(
+    path: str | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, ge=1, le=200),
+    generation: int | None = Query(default=None),
+):
+    try:
+        return JSONResponse(browse_content_paths(path, offset=offset, limit=limit, generation=generation))
+    except ContentPathChangedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/content-paths/refresh")
 async def refresh_content_paths(request: Request, _: None = Depends(csrf_protect)):
-    refresh_available_content_paths()
+    clear_content_path_cache()
     return redirect_back_or_default(request, "/sources")
 
 
