@@ -116,6 +116,8 @@ async def publish_file(channel: TelegramChannel, rule: PostingRule, file_record:
         "disable_notification": str(channel.disable_notification).lower(),
         "protect_content": str(channel.protect_content).lower(),
     }
+    if not rule.chat_id_override and channel.message_thread_id is not None:
+        payload["message_thread_id"] = str(channel.message_thread_id)
     caption = render_caption(channel, rule, file_record)
     if caption:
         payload["caption"] = caption

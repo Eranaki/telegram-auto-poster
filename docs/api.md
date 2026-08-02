@@ -64,8 +64,8 @@
 | GET | `/channels/{channel_id}/rules` | Rules и import candidates |
 | GET | `/channels/{channel_id}/sources` | Attached/attachable sources |
 | GET | `/channels/{channel_id}/history` | Filtered channel history |
-| POST | `/channels` | Создает channel, сохраняет token plaintext |
-| POST | `/channels/{channel_id}/settings` | Обновляет Telegram/settings flags |
+| POST | `/channels` | Создает channel; принимает optional positive integer `message_thread_id`, сохраняет token plaintext |
+| POST | `/channels/{channel_id}/settings` | Обновляет Telegram settings, включая optional forum topic ID |
 | POST | `/channels/{channel_id}/toggle` | Переключает enabled |
 | POST | `/channels/{channel_id}/delete` | Удаляет channel и ORM-dependent rules/history |
 | POST | `/channels/{channel_id}/sources/attach` | Создает channel-source link |

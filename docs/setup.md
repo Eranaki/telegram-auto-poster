@@ -103,6 +103,8 @@ uvicorn app.main:app --host 127.0.0.1 --port 8080
 
 Перед обновлением сделайте согласованную backup SQLite и `/data/.session_secret`, если secret генерируется автоматически.
 
+Версия с поддержкой тем форумов при первом startup добавляет nullable integer-колонку `telegram_channels.message_thread_id`. Существующие строки получают `NULL` и сохраняют прежнее поведение. Несмотря на неразрушающий характер изменения, сначала проверьте upgrade на копии базы.
+
 ```bash
 docker compose pull
 docker compose up -d

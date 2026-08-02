@@ -31,6 +31,11 @@ def migrate_schema() -> None:
     existing_tables = set(inspector.get_table_names())
 
     with engine.begin() as connection:
+        if "telegram_channels" in existing_tables:
+            channel_columns = {column["name"] for column in inspector.get_columns("telegram_channels")}
+            if "message_thread_id" not in channel_columns:
+                connection.execute(text("ALTER TABLE telegram_channels ADD COLUMN message_thread_id INTEGER"))
+
         if "posting_rules" in existing_tables:
             rule_columns = {column["name"] for column in inspector.get_columns("posting_rules")}
             if "channel_id" not in rule_columns:

@@ -33,7 +33,7 @@ erDiagram
 
 ### `telegram_channels`
 
-Каналы/назначения Telegram. `name` unique; `bot_token` и `chat_id` nullable; `parse_mode`, default caption, notification/protection flags, enabled, timestamps. Token хранится plaintext.
+Каналы/назначения Telegram. `name` unique; `bot_token`, `chat_id` и integer `message_thread_id` nullable; `parse_mode`, default caption, notification/protection flags, enabled, timestamps. Token хранится plaintext.
 
 ### `telegram_config`
 
@@ -92,6 +92,7 @@ Singleton ID 1: list/grid mode, card size, page size, thumbnail size и timestam
 Подтвержденные upgrades:
 
 - добавление channel/burst/HEIF/source-selection fields в `posting_rules`;
+- добавление nullable `message_thread_id` в `telegram_channels` для тем групп-форумов;
 - добавление `manual_trigger` в `post_history`;
 - добавление manual/progress fields в `content_sources`;
 - перенос первой `telegram_config` в канал `Основной` при отсутствии каналов;

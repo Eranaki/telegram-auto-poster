@@ -49,6 +49,7 @@ class TelegramChannel(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     bot_token: Mapped[str | None] = mapped_column(String(255))
     chat_id: Mapped[str | None] = mapped_column(String(255))
+    message_thread_id: Mapped[int | None] = mapped_column(Integer)
     parse_mode: Mapped[str | None] = mapped_column(String(32), default="HTML")
     default_caption: Mapped[str | None] = mapped_column(Text)
     disable_notification: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
