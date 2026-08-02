@@ -83,6 +83,7 @@ DEFAULT_FILE_VIEW_SETTINGS = {
     "file_page_size": 50,
     "thumbnail_size_px": 256,
 }
+MAX_MESSAGE_THREAD_ID = 2_147_483_647
 
 
 def parse_optional_hour(raw_value: str | None) -> int | None:
@@ -91,6 +92,19 @@ def parse_optional_hour(raw_value: str | None) -> int | None:
     value = int(raw_value)
     if value < 0 or value > 23:
         raise ValueError("Час должен быть в диапазоне от 0 до 23")
+    return value
+
+
+def parse_optional_message_thread_id(raw_value: str | None) -> int | None:
+    normalized_value = (raw_value or "").strip()
+    if not normalized_value:
+        return None
+    try:
+        value = int(normalized_value)
+    except ValueError as exc:
+        raise ValueError("ID темы форума должен быть положительным целым числом") from exc
+    if value <= 0 or value > MAX_MESSAGE_THREAD_ID:
+        raise ValueError(f"ID темы форума должен быть числом от 1 до {MAX_MESSAGE_THREAD_ID}")
     return value
 
 
@@ -869,6 +883,7 @@ async def create_channel(
     name: str = Form(...),
     bot_token: str = Form(default=""),
     chat_id: str = Form(default=""),
+    message_thread_id: str = Form(default=""),
     parse_mode: str = Form(default="HTML"),
     default_caption: str = Form(default=""),
     disable_notification: str | None = Form(default=None),
@@ -885,6 +900,26 @@ async def create_channel(
         context["channel_form"] = {
             "name": name,
             "chat_id": chat_id,
+            "message_thread_id": message_thread_id,
+            "bot_token": bot_token,
+            "parse_mode": parse_mode,
+            "default_caption": default_caption,
+            "disable_notification": to_bool(disable_notification),
+            "protect_content": to_bool(protect_content),
+            "enabled": to_bool(enabled) or enabled is None,
+        }
+        return render_page(request, session, "index.html", context, title="Главный дашборд", status_code=400)
+
+    try:
+        parsed_message_thread_id = parse_optional_message_thread_id(message_thread_id)
+    except ValueError as exc:
+        context = build_dashboard_context(session)
+        context["error_message"] = str(exc)
+        context["open_modal_id"] = "create-channel-modal"
+        context["channel_form"] = {
+            "name": normalized_name,
+            "chat_id": chat_id,
+            "message_thread_id": message_thread_id,
             "bot_token": bot_token,
             "parse_mode": parse_mode,
             "default_caption": default_caption,
@@ -902,6 +937,7 @@ async def create_channel(
         context["channel_form"] = {
             "name": normalized_name,
             "chat_id": chat_id,
+            "message_thread_id": message_thread_id,
             "bot_token": bot_token,
             "parse_mode": parse_mode,
             "default_caption": default_caption,
@@ -915,6 +951,7 @@ async def create_channel(
         name=normalized_name,
         bot_token=bot_token.strip() or None,
         chat_id=chat_id.strip() or None,
+        message_thread_id=parsed_message_thread_id,
         parse_mode=parse_mode.strip() or None,
         default_caption=default_caption.strip() or None,
         disable_notification=to_bool(disable_notification),
@@ -933,6 +970,7 @@ async def update_channel_settings(
     name: str = Form(...),
     bot_token: str = Form(default=""),
     chat_id: str = Form(default=""),
+    message_thread_id: str = Form(default=""),
     parse_mode: str = Form(default="HTML"),
     default_caption: str = Form(default=""),
     disable_notification: str | None = Form(default=None),
@@ -945,13 +983,42 @@ async def update_channel_settings(
     if channel is None:
         raise HTTPException(status_code=404, detail="Канал не найден")
 
+    form_state = {
+        "name": name,
+        "chat_id": chat_id,
+        "message_thread_id": message_thread_id,
+        "bot_token": bot_token,
+        "parse_mode": parse_mode,
+        "default_caption": default_caption,
+        "disable_notification": to_bool(disable_notification),
+        "protect_content": to_bool(protect_content),
+        "enabled": to_bool(enabled),
+    }
+
     normalized_name = name.strip()
     if not normalized_name:
         return render_page(
             request,
             session,
             "channel_overview.html",
-            build_channel_overview_context(session, channel, error_message="Нужно указать название канала."),
+            build_channel_overview_context(
+                session,
+                channel,
+                channel_form=form_state,
+                error_message="Нужно указать название канала.",
+            ),
+            title=f"Канал: {channel.name}",
+            status_code=400,
+        )
+
+    try:
+        parsed_message_thread_id = parse_optional_message_thread_id(message_thread_id)
+    except ValueError as exc:
+        return render_page(
+            request,
+            session,
+            "channel_overview.html",
+            build_channel_overview_context(session, channel, channel_form=form_state, error_message=str(exc)),
             title=f"Канал: {channel.name}",
             status_code=400,
         )
@@ -967,6 +1034,7 @@ async def update_channel_settings(
             build_channel_overview_context(
                 session,
                 channel,
+                channel_form=form_state,
                 error_message=f"Канал с именем '{normalized_name}' уже существует.",
             ),
             title=f"Канал: {channel.name}",
@@ -976,6 +1044,7 @@ async def update_channel_settings(
     channel.name = normalized_name
     channel.bot_token = bot_token.strip() or None
     channel.chat_id = chat_id.strip() or None
+    channel.message_thread_id = parsed_message_thread_id
     channel.parse_mode = parse_mode.strip() or None
     channel.default_caption = default_caption.strip() or None
     channel.disable_notification = to_bool(disable_notification)

@@ -66,40 +66,44 @@
         <form method="post" action="/channels/{{ channel.id }}/settings" class="form-grid">
             <label>
                 <span>Название</span>
-                <input type="text" name="name" value="{{ channel.name }}" required />
+                <input type="text" name="name" value="{{ channel_form.name }}" required />
             </label>
             <label>
                 <span class="label-with-help">
                     <span>Chat ID / канал</span>
                     <button type="button" class="help-button" data-modal-open="chat-id-help-modal" aria-label="Подсказка по Chat ID / канал" title="Что сюда вводить?">?</button>
                 </span>
-                <input type="text" name="chat_id" value="{{ channel.chat_id or '' }}" placeholder="@my_channel" />
+                <input type="text" name="chat_id" value="{{ channel_form.chat_id }}" placeholder="@my_channel" />
+            </label>
+            <label>
+                <span>ID темы форума</span>
+                <input type="number" name="message_thread_id" value="{{ channel_form.message_thread_id }}" min="1" max="2147483647" step="1" placeholder="Необязательно" />
             </label>
             <label class="full">
                 <span>Токен бота</span>
                 <div class="password-field">
-                    <input type="password" name="bot_token" value="{{ channel.bot_token or '' }}" data-password-input />
+                    <input type="password" name="bot_token" value="{{ channel_form.bot_token }}" data-password-input />
                     <button type="button" class="password-toggle" data-password-toggle aria-label="Показать токен" title="Показать токен">👁</button>
                 </div>
             </label>
             <label>
                 <span>Parse mode</span>
-                <input type="text" name="parse_mode" value="{{ channel.parse_mode or '' }}" />
+                <input type="text" name="parse_mode" value="{{ channel_form.parse_mode }}" />
             </label>
             <label class="checkbox">
-                <input type="checkbox" name="enabled" {% if channel.enabled %}checked{% endif %} />
+                <input type="checkbox" name="enabled" {% if channel_form.enabled %}checked{% endif %} />
                 <span>Канал включен</span>
             </label>
             <label class="full">
                 <span>Подпись по умолчанию</span>
-                <textarea name="default_caption" rows="4">{{ channel.default_caption or '' }}</textarea>
+                <textarea name="default_caption" rows="4">{{ channel_form.default_caption }}</textarea>
             </label>
             <label class="checkbox">
-                <input type="checkbox" name="disable_notification" {% if channel.disable_notification %}checked{% endif %} />
+                <input type="checkbox" name="disable_notification" {% if channel_form.disable_notification %}checked{% endif %} />
                 <span>Отправлять без уведомления</span>
             </label>
             <label class="checkbox">
-                <input type="checkbox" name="protect_content" {% if channel.protect_content %}checked{% endif %} />
+                <input type="checkbox" name="protect_content" {% if channel_form.protect_content %}checked{% endif %} />
                 <span>Защитить контент от пересылки</span>
             </label>
             <div class="actions full">
@@ -147,6 +151,7 @@
                 <ul class="help-list">
                     <li><strong>Название</strong> — имя канала внутри панели.</li>
                     <li><strong>Chat ID / канал</strong> — куда бот будет публиковать посты.</li>
+                    <li><strong>ID темы форума</strong> — <code>message_thread_id</code> темы в группе-форуме. Для обычного канала или общего чата поле остается пустым.</li>
                     <li><strong>Токен бота</strong> — токен Telegram-бота для публикаций.</li>
                     <li><strong>Parse mode</strong> — формат разметки подписи, чаще всего <code>HTML</code>.</li>
                     <li><strong>Подпись по умолчанию</strong> — общий текст подписи для правил канала, если у правила нет собственного шаблона.</li>
@@ -177,6 +182,7 @@
                     <li><strong>числовой chat_id</strong> — чаще нужен для приватных каналов.</li>
                 </ul>
                 <p>Если нужно получить <code>chat_id</code> приватного канала, добавь бота администратором, опубликуй пост и открой <code>https://api.telegram.org/botТОКЕН/getUpdates</code>.</p>
+                <p>Для темы форума найди в обновлении сообщения поле <code>message_thread_id</code> и укажи его в настройках канала. При включенной privacy mode отправь в теме команду боту. Другой вариант: временно назначь бота администратором и затем отправь в тему обычное сообщение.</p>
             </div>
         </div>
     </div>

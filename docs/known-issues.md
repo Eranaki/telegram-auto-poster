@@ -154,6 +154,10 @@ Import route уже делает `flush` до ошибки, но request session
 
 ## Исправлено
 
+### KI-032: нельзя было выбрать тему Telegram-группы
+
+**Исправлено поддержкой форумов.** Канал хранит optional `message_thread_id`, формы создания и настроек принимают положительный ID темы, а Telegram publisher передает его для фото, анимаций, видео и документов. При `chat_id_override` тема канала намеренно отключается.
+
 ### KI-031: CSS блокировался как mixed content за HTTPS proxy
 
 **Исправлено в этой ветке.** Шаблоны строили absolute CSS URL через `request.url_for()`. Если Uvicorn не доверял proxy headers, URL получал схему `http`, и HTTPS-браузер блокировал stylesheet. `base.html` и `login.html` теперь используют path-only часть URL с сохранением ASGI `root_path`. Требования к forwarded headers описаны в `docs/setup.md`.

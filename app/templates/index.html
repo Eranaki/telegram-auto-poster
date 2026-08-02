@@ -57,7 +57,10 @@
                     <div class="channel-card-header">
                         <div>
                             <h3>{{ channel.name }}</h3>
-                            <p>{{ channel.chat_id or "chat_id не указан" }}</p>
+                            <p>
+                                {{ channel.chat_id or "chat_id не указан" }}
+                                {% if channel.message_thread_id %} · тема {{ channel.message_thread_id }}{% endif %}
+                            </p>
                         </div>
                         <span class="tag {% if channel.enabled %}ok{% else %}muted{% endif %}">
                             {{ "Включен" if channel.enabled else "Отключен" }}
@@ -140,6 +143,10 @@
                     </span>
                     <input type="text" name="chat_id" value="{{ channel_form.chat_id }}" placeholder="@my_channel" />
                 </label>
+                <label>
+                    <span>ID темы форума</span>
+                    <input type="number" name="message_thread_id" value="{{ channel_form.message_thread_id }}" min="1" max="2147483647" step="1" placeholder="Необязательно" />
+                </label>
                 <label class="full">
                     <span>Токен бота</span>
                     <div class="password-field">
@@ -190,6 +197,7 @@
                 <ul class="help-list">
                     <li><strong>Название</strong> — любое удобное имя канала внутри панели.</li>
                     <li><strong>Chat ID / канал</strong> — либо <code>@username_канала</code>, либо числовой <code>chat_id</code> приватного канала.</li>
+                    <li><strong>ID темы форума</strong> — <code>message_thread_id</code> нужной темы в группе-форуме. Для обычного канала или общего чата оставь поле пустым.</li>
                     <li><strong>Токен бота</strong> — токен Telegram-бота, который будет публиковать посты.</li>
                     <li><strong>Parse mode</strong> — формат разметки подписи. Обычно удобно оставить <code>HTML</code>.</li>
                     <li><strong>Подпись по умолчанию</strong> — текст, который будет подставляться в посты этого канала, если правило не задаёт свой шаблон.</li>
@@ -220,6 +228,8 @@
                     <li><strong>числовой chat_id</strong>. Обычно нужен для приватных каналов или групп, когда username нет. Для каналов это часто отрицательное число, например <code>-1001234567890</code>.</li>
                 </ul>
                 <p>Важно: бот должен быть добавлен в канал и иметь права на публикацию сообщений.</p>
+                <p>Для публикации в отдельную тему группы укажи числовой <code>chat_id</code> группы и <code>message_thread_id</code> темы в поле «ID темы форума».</p>
+                <p>Чтобы тема появилась в <code>getUpdates</code> при включенной privacy mode, отправь в ней команду боту, например <code>/topicid@имя_бота</code>. Другой вариант: временно выдай боту права администратора и затем отправь в тему обычное сообщение.</p>
                 <p>Если у тебя публичный Telegram-канал, почти всегда проще вписать именно <code>@имя_канала</code>.</p>
                 <hr>
                 <p>Как получить <code>chat_id</code> для приватного канала:</p>

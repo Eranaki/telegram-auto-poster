@@ -2,9 +2,15 @@
 
 ## Конфигурация
 
-`telegram_channels` хранит bot token, default chat ID, parse mode, caption и flags. Rule может переопределить chat ID/caption и принудительно отправить файл как document. Token хранится plaintext и подставляется в URL `https://api.telegram.org/bot{token}/{method}`.
+`telegram_channels` хранит bot token, default chat ID, optional `message_thread_id`, parse mode, caption и flags. Rule может переопределить chat ID/caption и принудительно отправить файл как document. Token хранится plaintext и подставляется в URL `https://api.telegram.org/bot{token}/{method}`.
 
 Ни один документ или log не должен содержать реальный token. База и ее backups являются секретными.
+
+### Темы Групп-Форумов
+
+Для Telegram supergroup с включенными темами в настройках канала можно указать `ID темы форума`. Значение передается как `message_thread_id` во все поддерживаемые media methods. Пустое поле сохраняет прежнее поведение без выбора темы.
+
+Один group `chat_id` можно добавить в панель несколько раз под разными именами и назначить каждой записи отдельный `message_thread_id`. Если rule использует `chat_id_override`, topic ID канала не передается: override может указывать на другой chat, где такой topic не существует.
 
 ## Выбор Telegram Method
 

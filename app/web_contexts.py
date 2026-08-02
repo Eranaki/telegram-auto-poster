@@ -341,6 +341,7 @@ def build_channel_form_defaults() -> dict[str, object]:
     return {
         "name": "",
         "chat_id": "",
+        "message_thread_id": "",
         "bot_token": "",
         "parse_mode": "HTML",
         "default_caption": "",
@@ -391,6 +392,7 @@ def build_channel_overview_context(
     session: Session,
     channel: TelegramChannel,
     *,
+    channel_form: dict[str, object] | None = None,
     error_message: str = "",
     success_message: str = "",
 ) -> dict:
@@ -402,8 +404,21 @@ def build_channel_overview_context(
         .order_by(PostHistory.attempted_at.desc())
         .limit(15)
     ).all()
+    if channel_form is None:
+        channel_form = {
+            "name": channel.name,
+            "chat_id": channel.chat_id or "",
+            "message_thread_id": channel.message_thread_id or "",
+            "bot_token": channel.bot_token or "",
+            "parse_mode": channel.parse_mode or "",
+            "default_caption": channel.default_caption or "",
+            "disable_notification": channel.disable_notification,
+            "protect_content": channel.protect_content,
+            "enabled": channel.enabled,
+        }
     return {
         "channel": channel,
+        "channel_form": channel_form,
         "stats": build_channel_stats(session, channel),
         "recent_posts": annotate_history_items(recent_posts, thumbnail_size_px=96),
         "error_message": error_message,
@@ -528,4 +543,3 @@ def get_file_record_or_404(session: Session, file_id: int) -> FileRecord:
     if file_record is None:
         raise HTTPException(status_code=404, detail="Файл не найден")
     return file_record
-
